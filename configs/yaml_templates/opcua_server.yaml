@@ -1,0 +1,62 @@
+﻿# ============================================================================
+# OPC UA 服务端配置模板
+# 通过 OPC UA 暴露 AI 推理结果，兼容主流 SCADA/HMI 系统
+# ============================================================================
+
+version: "1.0"
+
+opcua:
+  server:
+    endpoint: "opc.tcp://0.0.0.0:4840"
+    name: "RK3588_AI_Vision_Server"
+    application_uri: "urn:rk3588:industrial:vision"
+    security_policy: "None"  # None | Basic256Sha256
+    anonymous_login: true
+
+  # 节点树结构
+  namespace: "http://rk3588-toolkit/opcua"
+
+  nodes:
+    # 设备信息
+    device_info:
+      path: "/Objects/DeviceInfo"
+      variables:
+        - { name: "Manufacturer",    type: "String",  value: "RK3588" }
+        - { name: "Model",           type: "String",  value: "Industrial Vision Controller" }
+        - { name: "FirmwareVersion", type: "String",  value: "1.0.0" }
+        - { name: "SerialNumber",    type: "String",  value: "R58-00001" }
+    
+    # 系统状态
+    system_status:
+      path: "/Objects/SystemStatus"
+      variables:
+        - { name: "Uptime",          type: "UInt32",  value: 0 }
+        - { name: "CPUTemperature",  type: "Float",   value: 0.0 }
+        - { name: "MemoryUsage",     type: "Float",   value: 0.0 }
+        - { name: "NPULoad",         type: "Float",   value: 0.0 }
+    
+    # 检测结果
+    detection:
+      path: "/Objects/Detection"
+      variables:
+        - { name: "FrameCount",      type: "UInt32", value: 0 }
+        - { name: "ObjectsDetected", type: "UInt32", value: 0 }
+        - { name: "InferenceTime",   type: "Float",  value: 0.0 }
+        - { name: "FPS",             type: "Float",  value: 0.0 }
+    
+    # 检测事件
+    detection_events:
+      path: "/Objects/DetectionEvents"
+      event_type: "DetectionEvent"
+      fields:
+        - { name: "ClassID",     type: "UInt16" }
+        - { name: "Confidence",  type: "Float" }
+        - { name: "CenterX",     type: "Float" }
+        - { name: "CenterY",     type: "Float" }
+        - { name: "Timestamp",   type: "DateTime" }
+
+  # 订阅配置
+  subscription:
+    publishing_interval_ms: 100
+    max_keep_alive_count: 10
+    lifetime_count: 30

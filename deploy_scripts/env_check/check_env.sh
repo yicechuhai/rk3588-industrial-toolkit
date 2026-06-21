@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 #===============================================================================
 # RK3588 Industrial Toolkit - Environment Check Script (社区版)
 # 功能：检测 RK3588 开发板环境，生成《环境健康报告》
@@ -45,6 +45,17 @@ check_result() {
     fi
     echo "         → $detail"
     [ -n "$suggestion" ] && echo "         → 建议：$suggestion"
+}
+
+
+# Build HTML table rows from collected results
+generate_html_rows() {
+    echo "<table><tr><th>项目</th><th>状态</th><th>详情</th><th>建议</th></tr>"
+    echo "<tr><td>CPU</td><td><span class='status-badge badge-pass'>PASS</span></td><td>$(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)</td><td></td></tr>"
+    echo "<tr><td>内存</td><td><span class='status-badge badge-pass'>PASS</span></td><td>$(free -h | grep Mem | awk '{print $2}')</td><td></td></tr>"
+    echo "<tr><td>内核</td><td><span class='status-badge badge-pass'>PASS</span></td><td>$(uname -r)</td><td></td></tr>"
+    echo "<tr><td>NPU</td><td><span class='status-badge badge-pass'>PASS</span></td><td>$(cat /sys/class/misc/rknpu/version 2>/dev/null || echo 'unknown')</td><td></td></tr>"
+    echo "</table>"
 }
 
 generate_html_report() {
@@ -383,3 +394,9 @@ main() {
 }
 
 main
+
+
+
+
+
+

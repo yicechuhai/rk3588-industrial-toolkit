@@ -1,0 +1,98 @@
+﻿# ============================================================================
+# RK3588 Industrial Toolkit 全局配置文件
+# ============================================================================
+
+version: "1.0.0"
+
+# 目标平台
+platform:
+  chip: "RK3588"
+  os: "Ubuntu"
+  os_version: "22.04"
+  kernel: "5.10"  # BSP 内核，可选 6.1+ PREEMPT_RT
+
+# 实时性配置
+realtime:
+  enabled: true
+  strategy: "preempt_rt"  # preempt_rt | cpu_isolation
+  cpu_isolation:
+    isolated_cores: "4-7"  # 隔离 A55 核心
+    nohz_full: "4-7"
+    rcu_nocbs: "4-7"
+  kernel_cmdline_extra:
+    - "isolcpus=4-7"
+    - "nohz_full=4-7"
+    - "rcu_nocbs=4-7"
+    - "irqaffinity=0-3"
+    - "nosoftlockup"
+
+# NPU 配置
+npu:
+  driver_version: "0.9.8"
+  core_mask: 3           # 使用 3 个 NPU 核心 (0b11)
+  frequency: "auto"      # auto | 1GHz | 900MHz | 800MHz
+  power_policy: "performance"
+
+# 推理引擎配置
+inference:
+  framework: "rknn"
+  default_model: "yolov5s"
+  input_size: [640, 640]
+  precision: "int8"
+  batch_size: 1
+  preprocessing:
+    mean: [0, 0, 0]
+    std: [255, 255, 255]
+  
+# 摄像头配置
+camera:
+  default_source: "usb"  # usb | mipi_csi | rtsp
+  usb:
+    device: "/dev/video0"
+    width: 1920
+    height: 1080
+    fps: 30
+  mipi_csi:
+    device: "/dev/video11"
+    sensor: "imx415"
+    width: 1920
+    height: 1080
+    fps: 30
+  rtsp:
+    url: "rtsp://192.168.1.100:554/stream"
+    buffer_size: 4
+
+# OSD 叠加配置
+osd:
+  enabled: true
+  font_scale: 0.6
+  font_thickness: 2
+  box_thickness: 2
+  colors:
+    person:    [0, 255, 0]    # 绿色
+    car:       [255, 0, 0]    # 蓝色
+    forklift:  [0, 255, 255]  # 黄色
+    default:   [255, 255, 255] # 白色
+
+# 工业协议配置
+protocols:
+  modbus_tcp:
+    enabled: true
+    config: "configs/yaml_templates/modbus_mapping.yaml"
+  opcua:
+    enabled: false
+    config: "configs/yaml_templates/opcua_server.yaml"
+
+# 输出配置
+output:
+  save_detection_images: false
+  log_level: "info"       # debug | info | warn | error
+  log_file: "/var/log/rk3588-toolkit/inference.log"
+  stats_interval: 60      # 性能统计输出间隔（秒）
+
+# 故障恢复
+recovery:
+  auto_restart: true
+  max_restarts: 5
+  restart_delay: 3
+  watchdog: true
