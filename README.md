@@ -104,6 +104,32 @@ sudo bash /opt/rk3588-toolkit/env_check/check_env.sh
 
 ## 📖 文档导航
 
+### 协作指南（所有协作者必读）
+
+| 文档 | 读者 | 说明 |
+|------|------|------|
+| [项目规划](PROJECT_PLAN.md) | 所有人 | 模块清单、里程碑、协作流程 |
+| [每日计划](DAILY_PLAN.md) | 你（产品负责人） | 每天的具体测试任务 |
+| [硬件档案](HARDWARE_REFERENCE.md) | Cursor + 你 | NanoPC T6 vs 鲁班猫8 差异 |
+| [Cursor 启动命令](CURSOR_START_PROMPT.md) | 你→Cursor | 复制发给 Cursor 的完整指令 |
+| [自动化配置](AUTOMATION_CONFIG.md) | 你 | 每日推送自动化设置 |
+
+### 技术文档
+
+| 文档 | 语言 | 说明 |
+|------|------|------|
+| [开发指南](deploy/docs/zh/development_guide.md) | 中文 | 架构、集成、API、扩展 |
+| [实时调优指南](deploy/docs/zh/realtime_tuning_guide.md) | 中文 | PREEMPT_RT 六步配置 |
+| [FAQ](deploy/docs/zh/faq.md) | 中文 | 部署/NPU/实时/商业 |
+
+### 营销材料
+
+| 文档 | 说明 |
+|------|------|
+| [立旗文章](docs_site/flagship_article.md) | CSDN/知乎/电子发烧友 |
+| [产品页](docs_site/landing_page.md) | GitHub Pages 首页 |
+| [销售话术](docs_site/sales_playbook.md) | 客户转化全流程 |
+
 | 文档 | 语言 | 说明 |
 |------|------|------|
 | [开发指南](deploy/docs/zh/development_guide.md) | 中文 | 架构、集成、API、扩展 |
@@ -143,5 +169,7 @@ sudo bash /opt/rk3588-toolkit/env_check/check_env.sh
 ## 📄 License
 
 Apache 2.0 © 2026 [yicechuhai](https://github.com/yicechuhai)
+
+
 
 
