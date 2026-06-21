@@ -25,7 +25,7 @@
 3. **备注必须填写你的 GitHub 用户名**
 4. 完成支付
 
-[支付宝收款码图片 — 请替换为你的实际收款码]
+![支付宝收款码](alipay_qrcode.jpg)
 
 ---
 
@@ -71,3 +71,4 @@ A：标准版补差价可升级企业版。已付金额全额抵扣。
 ---
 
 > 有任何问题请提交 [GitHub Issue](https://github.com/yicechuhai/rk3588-industrial-toolkit/issues)
+
