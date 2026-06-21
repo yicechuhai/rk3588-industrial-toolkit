@@ -1,0 +1,38 @@
+# RK3588 Industrial Toolkit .gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Models (大文件，不纳入版本控制)
+*.rknn
+*.onnx
+*.pt
+
+# 测试输出
+detection_result.jpg
+test_output/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# 离线包
+offline_pack/deps/
+offline_pack/*.tar.gz
+offline_pack/*.deb
+
+# 编译产物
+*.o
+*.so
+*.a
+cmake-build-*/
