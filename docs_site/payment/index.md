@@ -24,6 +24,8 @@
 2. 金额填 **¥9,800**（标准版）或 **¥29,800**（企业版）
 3. **备注必须填写你的 GitHub 用户名**
 4. 完成支付
+> ⚠ **转账时请填写姓氏：隆**
+
 
 ![支付宝收款码](alipay_qrcode.jpg)
 
@@ -71,4 +73,5 @@ A：标准版补差价可升级企业版。已付金额全额抵扣。
 ---
 
 > 有任何问题请提交 [GitHub Issue](https://github.com/yicechuhai/rk3588-industrial-toolkit/issues)
+
 
