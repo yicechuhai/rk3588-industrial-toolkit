@@ -95,6 +95,13 @@ sudo bash /opt/rk3588-toolkit/env_check/check_env.sh
 
 ---
 
+
+## 🗺️ 项目规划
+
+**所有协作者必读**：[PROJECT_PLAN.md](PROJECT_PLAN.md) — 包含完整模块清单、Cursor 待实现列表、测试矩阵、协作流程和时间线。
+
+---
+
 ## 📖 文档导航
 
 | 文档 | 语言 | 说明 |
@@ -136,3 +143,5 @@ sudo bash /opt/rk3588-toolkit/env_check/check_env.sh
 ## 📄 License
 
 Apache 2.0 © 2026 [yicechuhai](https://github.com/yicechuhai)
+
+
