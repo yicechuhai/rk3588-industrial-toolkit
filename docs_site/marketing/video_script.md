@@ -104,3 +104,59 @@ GitHub: yicechuhai/rk3588-industrial-toolkit
 - 音频：不需要（我后期配音）
 
 录好把 MP4 发给我，我处理剩下的：剪辑 + 字幕 + 背景音乐 + 配音 + 上传 B站。
+
+---
+
+## 补充：不需要摄像头录屏——用终端录制
+
+你让公司 Cursor 在板卡上直接跑 `script` 命令即可录下终端操作。
+
+### 方法一：终端回放（最简单，不需要任何软件）
+
+```bash
+# 在板卡上，通过 SSH 执行
+script -t 2> timing.log -a output.session
+
+# 然后执行你的演示命令：
+sudo bash deploy_scripts/env_check/check_env.sh
+sudo bash deploy_scripts/demo/run_yolov5_demo.sh
+
+# 录完退出
+exit
+```
+
+这会生成两个文件：
+- `output.session` — 终端输出
+- `timing.log` — 时间戳
+
+回放：
+```bash
+scriptreplay timing.log output.session
+```
+
+### 方法二：用 asciinema（推荐，可以嵌入网页）
+
+```bash
+# 安装（如果板卡有网）
+sudo apt install asciinema
+
+# 录制
+asciinema rec demo.cast
+
+# 执行演示命令...
+# Ctrl+D 结束录制
+
+# 上传到 asciinema.org（可选，获得分享链接）
+asciinema upload demo.cast
+```
+
+### 方法三：你电脑上用 OBS 录 SSH 窗口
+
+公司 Cursor 什么都不用做。你在你的电脑上：
+1. 打开 OBS
+2. 添加"窗口捕获" → 选 SSH 终端窗口
+3. 开始录制
+4. 让公司 Cursor 在板卡上跑命令
+5. 你在 OBS 上看到输出 → 录的就是你电脑上 SSH 窗口的画面
+
+**这个方法最省事**—你不需要任何板卡上的操作，只需要用 OBS 录你电脑上 SSH 连接的窗口。
