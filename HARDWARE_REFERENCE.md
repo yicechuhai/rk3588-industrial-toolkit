@@ -14,8 +14,8 @@
 | **USB** | USB 3.0 ×2, USB 2.0 ×2 |
 | **GPIO** | 40-pin 树莓派兼容 |
 | **设备树** | `rk3588-nanopc-t6.dtb` |
-| **内核** | BSP 5.10.x |
-| **NPU 驱动** | `<待你填写>` |
+| **内核** | 6.1.141 (Armbian, 非BSP内核) |
+| **NPU 驱动** | `内核模块已加载 (dmesg确认), debugfs未挂载无法读版本号` |
 | **特点** | 社区资料丰富，Armbian 支持好 |
 
 ## 鲁班猫 8
@@ -32,8 +32,8 @@
 | **USB** | USB 3.0 ×2, USB 2.0 ×2, Type-C |
 | **GPIO** | 40-pin 扩展 |
 | **设备树** | `rk3588-lubancat-8.dtb` |
-| **内核** | BSP 5.10.x |
-| **NPU 驱动** | `<待你填写>` |
+| **内核** | 6.1.141 (Armbian, 非BSP内核) |
+| **NPU 驱动** | `内核模块已加载 (dmesg确认), debugfs未挂载无法读版本号` |
 | **特点** | 出厂带散热风扇，文档中文完善 |
 
 ## 关键差异（影响脚本适配）
@@ -59,3 +59,16 @@ NPU驱动: 0.9.8  # cat /sys/class/misc/rknpu/version
 RKNN Runtime: 2.3.2
 摄像头: Logitech C920  # USB摄像头型号
 ```
+
+
+## 测试记录
+
+### 2026-06-22 · NanoPC T6 基线
+
+- 系统: Debian 11 (非Ubuntu 22.04，需适配)
+- 内核: 6.1.141 (标准PREEMPT，非RT)
+- NPU: /dev/dri/renderD128 ✅, rknpu 已加载 ✅, 版本无法读取 ⚠️
+- RKNN Runtime: 2.3.2 ✅
+- RGA: /dev/rga ✅, librga 2.2.0 ✅
+- 网络: 无外网 ⚠️
+- 汇总: 17 PASS, 6 WARN, 0 FAIL
