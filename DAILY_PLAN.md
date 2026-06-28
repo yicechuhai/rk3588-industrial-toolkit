@@ -1,5 +1,30 @@
 ﻿# 每日工作推进计划
 
+---
+
+## ⚠️ 2026-06-28 状态同步
+
+断档 6 天。当前进度：
+
+### 已完成
+- ✅ NPU 驱动检测 + 升级脚本（Cursor，feat/npu-driver 分支）
+- ✅ NanoPC T6 基线测试（17 PASS, 0 FAIL）
+- ✅ 文档体系全部就绪
+- ✅ 收款方案已配置
+
+### 待完成
+- ❌ PREEMPT_RT 补丁脚本（apply_rt_patch.sh + setup_realtime.sh）— Cursor 未做
+- ❌ 离线部署包（build_offline.sh）— Cursor 未做
+- ❌ 鲁班猫 8 基线测试 — 未测
+- ❌ feat/npu-driver 分支的 NPU 脚本未在两块板卡上实际跑过
+- ❌ 演示视频未录
+- ❌ CSDN 文章未发
+
+### 明天（周一 6.29）必须做的
+1. 给家里 Cursor 发消息推动它继续写 P0 剩余脚本
+2. 公司板卡：鲁班猫 8 基线 + NPU 脚本实测 + 录视频
+3. 发 CSDN 文章
+
 > **仓库**：[yicechuhai/rk3588-industrial-toolkit](https://github.com/yicechuhai/rk3588-industrial-toolkit)
 > **开始日期**：2026-06-22（周一）
 > **更新频率**：每日 22:00 推送次日计划
@@ -293,5 +318,6 @@ Codex 主导，你配合。
 ```
 
 **预计你的总投入**：周均 5-7 小时（工作日每天约 30-60 分钟，周末约 1-2 小时）
+
 
 
