@@ -154,104 +154,6 @@ install(TARGETS demo_inference
     RUNTIME DESTINATION bin
 )
 
-# ============================================================================
-# Python 绑定模块 (pybind11)
-# ============================================================================
-# 构建方式:
-#   cd deploy/engine && mkdir build && cd build
-#   cmake .. -DPYTHON_EXECUTABLE=$(which python3) -DBUILD_PYTHON=ON
-#   make rknn_engine_python -j4
-#
-# 或直接:
-#   cd deploy/engine/python && pip install .
-# ============================================================================
-
-option(BUILD_PYTHON "Build Python bindings via pybind11" ON)
-
-if(BUILD_PYTHON)
-    # ── 查找 pybind11 ──
-    find_package(pybind11 CONFIG QUIET)
-    if(NOT pybind11_FOUND)
-        # 通过 pip 安装到用户 site-packages
-        message(STATUS "pybind11 not found via CMake, trying via pip...")
-        execute_process(
-            COMMAND ${PYTHON_EXECUTABLE} -m pybind11 --cmakedir
-            OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-        )
-        if(PYBIND11_CMAKE_DIR)
-            list(APPEND CMAKE_PREFIX_PATH "${PYBIND11_CMAKE_DIR}")
-            find_package(pybind11 CONFIG REQUIRED)
-        else()
-            message(FATAL_ERROR
-                "pybind11 not found. Install with: pip install pybind11")
-        endif()
-    endif()
-    message(STATUS "Found pybind11: ${pybind11_DIR}")
-
-    # ── 查找 Python (NumPy headers 需要) ──
-    if(NOT DEFINED PYTHON_EXECUTABLE)
-        find_package(Python COMPONENTS Interpreter Development REQUIRED)
-    else()
-        find_package(Python COMPONENTS Interpreter Development
-            REQUIRED
-            HINTS ${PYTHON_EXECUTABLE})
-    endif()
-
-    # 获取 NumPy include 路径
-    execute_process(
-        COMMAND ${Python_EXECUTABLE} -c
-            "import numpy; print(numpy.get_include())"
-        OUTPUT_VARIABLE NUMPY_INCLUDE_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        REQUIRED
-    )
-
-    # ── pybind11 模块 ──
-    set(PYBIND11_SOURCES
-        python/bindings.cpp
-    )
-
-    pybind11_add_module(rknn_engine_python SHARED ${PYBIND11_SOURCES})
-
-    target_include_directories(rknn_engine_python
-        PRIVATE
-            ${ENGINE_INCLUDE_DIR}
-            ${YAML_CPP_INCLUDE_DIR}
-            ${NUMPY_INCLUDE_DIR}
-    )
-
-    target_link_libraries(rknn_engine_python
-        PRIVATE
-            engine                 # reuse the existing libengine.so target
-            pybind11::headers
-            ${RKNNRT_LIB}
-            ${RGA_LIB}
-            yaml-cpp::yaml-cpp
-    )
-
-    set_target_properties(rknn_engine_python PROPERTIES
-        OUTPUT_NAME rknn_engine
-        CXX_STANDARD 17
-        CXX_STANDARD_REQUIRED ON
-        POSITION_INDEPENDENT_CODE ON
-    )
-
-    # 安装到 Python site-packages
-    install(TARGETS rknn_engine_python
-        LIBRARY DESTINATION ${Python_SITELIB}
-    )
-
-    # 安装 __init__.py
-    install(FILES python/__init__.py
-        DESTINATION ${Python_SITELIB}/rknn_engine
-    )
-
-    message(STATUS "  rknn_engine_python  Python 绑定模块")
-
-endif()
-
 # ── 编译信息摘要 ──
 message(STATUS "")
 message(STATUS "RK3588 推理引擎 构建配置")
@@ -261,9 +163,6 @@ message(STATUS "  C++ 标准:   C++${CMAKE_CXX_STANDARD}")
 message(STATUS "  构建类型:   ${CMAKE_BUILD_TYPE}")
 message(STATUS "  安装前缀:   ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "  产物:")
-message(STATUS "    libengine.so            共享库")
-message(STATUS "    demo_inference          演示程序")
-if(BUILD_PYTHON AND pybind11_FOUND)
-    message(STATUS "    rknn_engine_python      Python 绑定模块")
-endif()
+message(STATUS "    libengine.so      共享库")
+message(STATUS "    demo_inference    演示程序")
 message(STATUS "──────────────────────────────────")
