@@ -319,8 +319,9 @@ check_current_config() {
 
     echo ""
     log_info "Current CPU status:"
-    for cpu in /sys/devices/system/cpu/cpu[0-7]/online; do
-        local cpu_idx=$(echo "$cpu" | grep -oP 'cpu\K[0-7]')
+    local total_cpus=$(grep -c "^processor" /proc/cpuinfo)
+    for cpu_idx in $(seq 0 $((total_cpus - 1))); do
+        local cpu="/sys/devices/system/cpu/cpu${cpu_idx}/online"
         local online=$(cat "$cpu" 2>/dev/null || echo 1)
         if [ "$online" = "1" ]; then
             local gov_val=$(cat "/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq/scaling_governor" 2>/dev/null || echo "N/A")
@@ -339,7 +340,7 @@ apply_realtime_config() {
     echo -e "${CYAN}--- 2. Apply Realtime Tuning Configuration ---${NC}"
 
     log_info "Setting CPU frequency governor to performance..."
-    for cpu in /sys/devices/system/cpu/cpu[0-7]; do
+    for cpu in /sys/devices/system/cpu/cpu[0-9]; do
         if [ -f "$cpu/cpufreq/scaling_governor" ]; then
             echo performance > "$cpu/cpufreq/scaling_governor" 2>/dev/null || true
         fi
@@ -347,7 +348,10 @@ apply_realtime_config() {
     log_info "CPU frequency governor set OK"
 
     log_info "Disabling deep CPU idle states on realtime cores..."
-    for cpu in /sys/devices/system/cpu/cpu[4-7]; do
+    local rt_first=$(echo "$RT_CPUS" | cut -d- -f1)
+    local rt_last=$(echo "$RT_CPUS" | cut -d- -f2)
+    for cpu_idx in $(seq "$rt_first" "$rt_last"); do
+        local cpu="/sys/devices/system/cpu/cpu${cpu_idx}"
         if [ -d "$cpu/cpuidle" ]; then
             for state in "$cpu/cpuidle/state"*; do
                 if [ -f "$state/disable" ]; then
@@ -366,11 +370,12 @@ apply_realtime_config() {
         systemctl disable irqbalance 2>/dev/null || true
     fi
 
+    local total_cpus=$(grep -c "^processor" /proc/cpuinfo)
     local IRQ_AFFINITY_MASK=""
     for cpu in $IRQ_CPUS_LIST; do
         IRQ_AFFINITY_MASK="${IRQ_AFFINITY_MASK}1"
     done
-    while [ ${#IRQ_AFFINITY_MASK} -lt 8 ]; do
+    while [ ${#IRQ_AFFINITY_MASK} -lt "$total_cpus" ]; do
         IRQ_AFFINITY_MASK="0${IRQ_AFFINITY_MASK}"
     done
     IRQ_AFFINITY_MASK=$(printf "%x" $((2#${IRQ_AFFINITY_MASK})))
@@ -503,7 +508,7 @@ run_stress_test() {
     echo "  stress-ng: CPU load + memory pressure + I/O load"
     echo ""
 
-    log_info "Starting stress-ng on non-realtime cores (CPU 0-3)..."
+    log_info "Starting stress-ng on non-realtime cores (CPU ${IRQ_CPUS})..."
 
     killall stress-ng 2>/dev/null || true
     sleep 1
@@ -589,14 +594,17 @@ restore_defaults() {
     log_info "This will restore default system configuration..."
 
     log_info "Restoring CPU frequency governor..."
-    for cpu in /sys/devices/system/cpu/cpu[0-7]; do
+    for cpu in /sys/devices/system/cpu/cpu[0-9]; do
         if [ -f "$cpu/cpufreq/scaling_governor" ]; then
             echo schedutil > "$cpu/cpufreq/scaling_governor" 2>/dev/null || true
         fi
     done
 
     log_info "Restoring CPU idle states..."
-    for cpu in /sys/devices/system/cpu/cpu[4-7]; do
+    local rt_first=$(echo "$RT_CPUS" | cut -d- -f1)
+    local rt_last=$(echo "$RT_CPUS" | cut -d- -f2)
+    for cpu_idx in $(seq "$rt_first" "$rt_last"); do
+        local cpu="/sys/devices/system/cpu/cpu${cpu_idx}"
         if [ -d "$cpu/cpuidle" ]; then
             for state in "$cpu/cpuidle/state"*; do
                 if [ -f "$state/disable" ]; then

@@ -5,6 +5,7 @@
  * 流水线:
  *   /dev/video0 (V4L2, NV12, DMA-BUF)
  *       ↓ V4L2 DQBUF → DMA-BUF fd
+<<<<<<< Updated upstream
  *    imimport(fd) → 包装为 rga_buffer_t
  *       ↓
  *    improcess(NV12 → RGB, letterbox 缩放)
@@ -16,6 +17,21 @@
  * im2d API 文档参考:
  *   - im2d.hpp: imimport, improcess, imexport, imfill
  *   - librga.so >= 2.0, RK3588 内置 RGA 3.0
+=======
+ *    importbuffer_fd(fd) → wrapbuffer_handle(handle) → rga_buffer_t
+ *       ↓
+ *    improcess(NV12 → RGB, letterbox 缩放)
+ *       ↓
+ *    DMA-BUF fd → PipelineFrame.dma_fd → NPU 输入 (rknn_set_io_mem)
+ *
+ * 全程零拷贝: RGA 直接在 DMA-BUF 上操作，不经过 CPU memcpy。
+ *
+ * im2d API 参考:
+ *   - importbuffer_fd()    导入外部 DMA-BUF 到 RGA 驱动
+ *   - wrapbuffer_handle()  包装 rga_buffer_handle → rga_buffer_t
+ *   - improcess()          综合处理 (crop + resize + cvtcolor)
+ *   - releasebuffer_handle() 释放导入的 buffer handle
+>>>>>>> Stashed changes
  *
  * @author RK3588 Industrial Toolkit
  * @version 1.0.0
@@ -41,12 +57,38 @@
 // Linux DMA-BUF / dma-heap 分配
 #include <linux/dma-heap.h>
 #include <linux/dma-buf.h>
+<<<<<<< Updated upstream
 #include <linux/videodev2.h>
 
 // librga 2.0 im2d API
 #include <im2d.hpp>
 #include <rga.h>
 #include <RockchipRga.h>
+=======
+#ifndef VIDIOC_EXPBUF
+/* 部分旧内核头文件不包含 VIDIOC_EXPBUF, 手动定义 */
+struct v4l2_exportbuffer {
+  uint32_t fd;
+  uint32_t type;
+  uint32_t index;
+  uint32_t plane;
+  uint32_t reserved;
+};
+#define VIDIOC_EXPBUF _IOWR('V', 0x10, struct v4l2_exportbuffer)
+#endif
+
+#include <linux/videodev2.h>
+
+// librga 2.0 im2d API (C++ 封装)
+#include <im2d.hpp>
+#include <rga.h>
+#include <im2d_type.h>
+
+// 用于 DMA-BUF fd 查询
+#ifndef DMA_BUF_IOCTL_GET_NAME
+#define DMA_BUF_IOCTL_GET_NAME _IOWR('b', 1, char[64])
+#endif
+>>>>>>> Stashed changes
 
 namespace rk3588 {
 namespace engine {
@@ -68,6 +110,26 @@ static constexpr int kPollTimeoutMs = 3000;
 static constexpr size_t kFpsWindow = 60;
 
 // ============================================================================
+<<<<<<< Updated upstream
+=======
+// RGA 格式映射
+// ============================================================================
+
+/** @brief DMA-BUF 导入的虚设 size 参数 (实际由驱动计算) */
+static constexpr int kDmaBufImportSizeDummy = 0;
+
+/** @brief NV12 帧大小计算 */
+static inline uint32_t Nv12FrameSize(uint32_t width, uint32_t height) {
+  return width * height * 3 / 2;
+}
+
+/** @brief RGB888 帧大小计算 */
+static inline uint32_t RgbFrameSize(uint32_t width, uint32_t height) {
+  return width * height * 3;
+}
+
+// ============================================================================
+>>>>>>> Stashed changes
 // 辅助函数
 // ============================================================================
 
@@ -85,7 +147,11 @@ static int Xioctl(int fd, unsigned long request, void* arg) {
 }
 
 /** @brief V4L2 像素格式转 RGA 格式 */
+<<<<<<< Updated upstream
 static uint64_t V4l2ToRgaFormat(uint32_t v4l2_fmt) {
+=======
+static int V4l2ToRgaFormat(uint32_t v4l2_fmt) {
+>>>>>>> Stashed changes
   switch (v4l2_fmt) {
     case V4L2_PIX_FMT_NV12:     return RK_FORMAT_YCbCr_420_SP;
     case V4L2_PIX_FMT_NV21:     return RK_FORMAT_YCrCb_420_SP;
@@ -115,6 +181,23 @@ static const char* V4l2FmtName(uint32_t fmt) {
   }
 }
 
+<<<<<<< Updated upstream
+=======
+/** @brief 通过 VIDIOC_EXPBUF 从 V4L2 缓冲区导出 DMA-BUF fd */
+static int ExportV4l2DmaBuf(int v4l2_fd, uint32_t buf_idx) {
+  struct v4l2_exportbuffer exp;
+  memset(&exp, 0, sizeof(exp));
+  exp.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  exp.index = buf_idx;
+  exp.plane = 0;
+
+  if (Xioctl(v4l2_fd, VIDIOC_EXPBUF, &exp) < 0) {
+    return -1;
+  }
+  return exp.fd;
+}
+
+>>>>>>> Stashed changes
 // ============================================================================
 // PIMPL 实现结构
 // ============================================================================
@@ -128,20 +211,40 @@ struct RgaPipeline::Impl {
   int v4l2_fd = -1;
   bool capturing = false;
 
+<<<<<<< Updated upstream
   // V4L2 缓冲区 (使用 DMA-BUF 或 mmap)
   std::vector<FrameBuffer> buffers;
+=======
+  // V4L2 缓冲区 (MMAP 或 EXPBUF)
+  std::vector<FrameBuffer> buffers;
+  bool mmap_mode = true;  // true=mmap, false=dmabuf via EXPBUF
+>>>>>>> Stashed changes
 
   // ── RGA 状态 ──
   bool rga_available = false;
 
+<<<<<<< Updated upstream
   // 输出 DMA-BUF (预分配，RGA 写入)
+=======
+  // 输出 DMA-BUF (预分配)
+>>>>>>> Stashed changes
   int output_dma_fd = -1;
   void* output_dma_virt = nullptr;
   uint32_t output_dma_size = 0;
 
+<<<<<<< Updated upstream
   // RGA 输出目标 buffer (使用 imimport 包装 DMA-BUF)
   rga_buffer_t dst_buf;
 
+=======
+  // 输出 rga_buffer_handle_t 和 rga_buffer_t
+  rga_buffer_handle_t output_handle = 0;
+  rga_buffer_t dst_buf;
+
+  // 源 buffer handle 缓存 (避免重复 import/release)
+  rga_buffer_handle_t src_handle = 0;
+
+>>>>>>> Stashed changes
   // ── 状态 ──
   bool initialized = false;
 
@@ -160,6 +263,18 @@ RgaPipeline::RgaPipeline(const CameraConfig& cam_cfg,
     : impl_(std::make_unique<Impl>()) {
   impl_->cam_cfg = cam_cfg;
   impl_->rga_cfg = rga_cfg;
+<<<<<<< Updated upstream
+=======
+  impl_->mmap_mode = !cam_cfg.use_dmabuf;
+
+  // 同步采集与转换的源/目标尺寸
+  if (impl_->rga_cfg.src_width == 0) {
+    impl_->rga_cfg.src_width = cam_cfg.width;
+  }
+  if (impl_->rga_cfg.src_height == 0) {
+    impl_->rga_cfg.src_height = cam_cfg.height;
+  }
+>>>>>>> Stashed changes
 }
 
 RgaPipeline::~RgaPipeline() {
@@ -226,14 +341,29 @@ bool RgaPipeline::OpenDevice() {
   struct v4l2_capability cap;
   memset(&cap, 0, sizeof(cap));
   if (Xioctl(impl_->v4l2_fd, VIDIOC_QUERYCAP, &cap) < 0) {
+<<<<<<< Updated upstream
+=======
+    close(impl_->v4l2_fd);
+    impl_->v4l2_fd = -1;
+>>>>>>> Stashed changes
     return false;
   }
 
   // 验证设备类型
   if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
+<<<<<<< Updated upstream
     return false;
   }
   if (!(cap.capabilities & V4L2_CAP_STREAMING)) {
+=======
+    close(impl_->v4l2_fd);
+    impl_->v4l2_fd = -1;
+    return false;
+  }
+  if (!(cap.capabilities & V4L2_CAP_STREAMING)) {
+    close(impl_->v4l2_fd);
+    impl_->v4l2_fd = -1;
+>>>>>>> Stashed changes
     return false;
   }
 
@@ -256,28 +386,46 @@ bool RgaPipeline::SetFormat() {
     return false;
   }
 
+<<<<<<< Updated upstream
   // 读取实际设置的格式（驱动可能调整分辨率）
   // 更新配置以反映实际值
 
+=======
+>>>>>>> Stashed changes
   // 设置帧率
   struct v4l2_streamparm parm;
   memset(&parm, 0, sizeof(parm));
   parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   parm.parm.capture.timeperframe.numerator = 1;
   parm.parm.capture.timeperframe.denominator = cfg.fps;
+<<<<<<< Updated upstream
   Xioctl(impl_->v4l2_fd, VIDIOC_S_PARM, &parm);  // best-effort
+=======
+  Xioctl(impl_->v4l2_fd, VIDIOC_S_PARM, &parm);
+>>>>>>> Stashed changes
 
   return true;
 }
 
 bool RgaPipeline::RequestBuffers() {
   const auto& cfg = impl_->cam_cfg;
+<<<<<<< Updated upstream
+=======
+  int memory = impl_->mmap_mode ? V4L2_MEMORY_MMAP : V4L2_MEMORY_MMAP;
+  // 注意: 这里始终用 V4L2_MEMORY_MMAP 申请，然后通过 EXPBUF 导出 fd。
+  // 纯 DMA-BUF 模式 (V4L2_MEMORY_DMABUF) 需要外部提供 fd，
+  // 对于 V4L2 capture 设备，更常见的零拷贝方式是 MMAP + EXPBUF。
+>>>>>>> Stashed changes
 
   struct v4l2_requestbuffers req;
   memset(&req, 0, sizeof(req));
   req.count = cfg.buffer_count;
   req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+<<<<<<< Updated upstream
   req.memory = cfg.use_dmabuf ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
+=======
+  req.memory = V4L2_MEMORY_MMAP;
+>>>>>>> Stashed changes
 
   if (Xioctl(impl_->v4l2_fd, VIDIOC_REQBUFS, &req) < 0) {
     return false;
@@ -296,7 +444,11 @@ bool RgaPipeline::RequestBuffers() {
     memset(&planes, 0, sizeof(planes));
 
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+<<<<<<< Updated upstream
     buf.memory = req.memory;
+=======
+    buf.memory = V4L2_MEMORY_MMAP;
+>>>>>>> Stashed changes
     buf.index = i;
     buf.length = 1;
     buf.m.planes = planes;
@@ -308,6 +460,7 @@ bool RgaPipeline::RequestBuffers() {
     FrameBuffer fb;
     fb.index = i;
     fb.length = planes[0].length;
+<<<<<<< Updated upstream
     fb.bytesused = 0;
 
     if (cfg.use_dmabuf) {
@@ -324,6 +477,22 @@ bool RgaPipeline::RequestBuffers() {
       if (fb.start == MAP_FAILED) {
         return false;
       }
+=======
+
+    // mmap 映射
+    fb.start = mmap(nullptr, fb.length,
+                    PROT_READ | PROT_WRITE, MAP_SHARED,
+                    impl_->v4l2_fd, planes[0].m.mem_offset);
+    if (fb.start == MAP_FAILED) {
+      return false;
+    }
+    fb.state = BufferState::UNUSED;
+
+    // 如果请求了 DMA-BUF，通过 EXPBUF 导出 fd
+    if (!impl_->mmap_mode) {
+      fb.dma_fd = ExportV4l2DmaBuf(impl_->v4l2_fd, i);
+      // dma_fd 可能为 -1 (不支持 EXPBUF), 此时回退到 mmap 模式
+>>>>>>> Stashed changes
     }
 
     impl_->buffers[i] = fb;
@@ -333,7 +502,10 @@ bool RgaPipeline::RequestBuffers() {
 }
 
 bool RgaPipeline::StartCapture() {
+<<<<<<< Updated upstream
   const auto& cfg = impl_->cam_cfg;
+=======
+>>>>>>> Stashed changes
   enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
   // 队列所有缓冲区
@@ -344,17 +516,24 @@ bool RgaPipeline::StartCapture() {
     memset(&planes, 0, sizeof(planes));
 
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+<<<<<<< Updated upstream
     buf.memory = cfg.use_dmabuf ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
+=======
+    buf.memory = V4L2_MEMORY_MMAP;
+>>>>>>> Stashed changes
     buf.index = i;
     buf.length = 1;
     buf.m.planes = planes;
 
+<<<<<<< Updated upstream
     if (cfg.use_dmabuf) {
       // 使用外部分配的 DMA-BUF fd
       planes[0].m.fd = impl_->buffers[i].dma_fd;
       planes[0].length = impl_->buffers[i].length;
     }
 
+=======
+>>>>>>> Stashed changes
     if (Xioctl(impl_->v4l2_fd, VIDIOC_QBUF, &buf) < 0) {
       return false;
     }
@@ -396,7 +575,11 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
   memset(&buf, 0, sizeof(buf));
   memset(&planes, 0, sizeof(planes));
   buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+<<<<<<< Updated upstream
   buf.memory = impl_->cam_cfg.use_dmabuf ? V4L2_MEMORY_DMABUF : V4L2_MEMORY_MMAP;
+=======
+  buf.memory = V4L2_MEMORY_MMAP;
+>>>>>>> Stashed changes
   buf.length = 1;
   buf.m.planes = planes;
 
@@ -412,6 +595,7 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
                     buf.timestamp.tv_usec * 1000ULL;
   fb.bytesused = planes[0].bytesused;
 
+<<<<<<< Updated upstream
   // ── 2. RGA 格式转换: NV12 → RGB ──
   // 使用 im2d API 的 imimport → improcess → imexport 零拷贝路径
 
@@ -439,10 +623,46 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
                        V4l2ToRgaFormat(impl_->rga_cfg.src_format),
                        IM_DMA_BUF_IMPORT);
   } else if (src_virt) {
+=======
+  // ── 2. RGA 格式转换: NV12 → RGB (DMA-BUF 零拷贝) ──
+
+  // 2a. 确定源 buffer: 优先用 DMA-BUF fd, 回退到 virtual addr
+  void* src_virt = fb.start;
+  int src_fd = fb.dma_fd;
+
+  // 如果之前没导出成功，现在尝试导出
+  if (src_fd < 0 && !impl_->mmap_mode) {
+    src_fd = ExportV4l2DmaBuf(impl_->v4l2_fd, buf_idx);
+  }
+
+  // 2b. 导入源 buffer 到 RGA 驱动
+  rga_buffer_handle_t src_handle = 0;
+  rga_buffer_t src_buf;
+  bool src_from_fd = false;
+
+  if (src_fd >= 0) {
+    // DMA-BUF 路径: importbuffer_fd + wrapbuffer_handle
+    src_handle = importbuffer_fd(src_fd, kDmaBufImportSizeDummy,
+                                 impl_->rga_cfg.src_width,
+                                 impl_->rga_cfg.src_height,
+                                 V4l2ToRgaFormat(impl_->rga_cfg.src_format));
+    if (src_handle > 0) {
+      src_buf = wrapbuffer_handle(src_handle,
+                                  impl_->rga_cfg.src_width,
+                                  impl_->rga_cfg.src_height,
+                                  V4l2ToRgaFormat(impl_->rga_cfg.src_format));
+      src_from_fd = true;
+    }
+  }
+
+  if (src_handle <= 0) {
+    // 回退: 使用 virtual addr 路径
+>>>>>>> Stashed changes
     src_buf = wrapbuffer_virtualaddr(src_virt,
                                      impl_->rga_cfg.src_width,
                                      impl_->rga_cfg.src_height,
                                      V4l2ToRgaFormat(impl_->rga_cfg.src_format));
+<<<<<<< Updated upstream
   } else {
     // 无法获取源数据
     // 重新入队缓冲区
@@ -491,6 +711,27 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
   }
 
   // 2b. improcess: 执行 NV12 → RGB 转换 + 缩放
+=======
+  }
+
+  if (src_buf.handle <= 0) {
+    // 源 buffer 初始化失败, 重新入队
+    RequeueBuffer(buf_idx);
+    return result;
+  }
+
+  // 2c. 计算 letterbox 裁剪参数
+  int crop_x = 0, crop_y = 0, crop_w = 0, crop_h = 0;
+  if (impl_->rga_cfg.letterbox) {
+    CalcLetterbox(static_cast<int>(impl_->rga_cfg.src_width),
+                  static_cast<int>(impl_->rga_cfg.src_height),
+                  static_cast<int>(impl_->rga_cfg.dst_width),
+                  static_cast<int>(impl_->rga_cfg.dst_height),
+                  crop_x, crop_y, crop_w, crop_h);
+  }
+
+  // 2d. improcess: 执行 NV12 → RGB 转换 + 缩放 + 裁剪
+>>>>>>> Stashed changes
   im_rect src_rect;
   if (impl_->rga_cfg.letterbox && crop_w > 0 && crop_h > 0) {
     src_rect = {crop_x, crop_y, crop_w, crop_h};
@@ -504,6 +745,7 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
                       static_cast<int>(impl_->rga_cfg.dst_width),
                       static_cast<int>(impl_->rga_cfg.dst_height)};
 
+<<<<<<< Updated upstream
   int ret = improcess(src_buf, impl_->dst_buf, src_rect, dst_rect,
                       IM_SYNC);
   if (ret != IM_STATUS_SUCCESS) {
@@ -543,12 +785,37 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
     result.virt_addr = nullptr;
   }
 
+=======
+  // improcess 参数: src, dst, pat(no pattern), srect, drect, prect,
+  //                 acquire_fence_fd(NO), release_fence_fd(NO), opt(NULL), usage(SYNC)
+  IM_STATUS status = improcess(src_buf, impl_->dst_buf, {}, src_rect, dst_rect,
+                                {}, -1, nullptr, nullptr, IM_SYNC);
+
+  if (status != IM_STATUS_SUCCESS) {
+    // improcess 失败
+    if (src_handle > 0) {
+      releasebuffer_handle(src_handle);
+    }
+    RequeueBuffer(buf_idx);
+    return result;
+  }
+
+  // 释放源 buffer handle (DMA-BUF fd 的引用计数减一，但不关闭 fd)
+  if (src_handle > 0) {
+    releasebuffer_handle(src_handle);
+  }
+
+  // ── 3. 填充输出 PipelineFrame ──
+  result.dma_fd = impl_->output_dma_fd;
+  result.virt_addr = impl_->output_dma_virt;
+>>>>>>> Stashed changes
   result.size = impl_->output_dma_size;
   result.width = impl_->rga_cfg.dst_width;
   result.height = impl_->rga_cfg.dst_height;
   result.sequence = fb.sequence;
   result.timestamp_ns = fb.timestamp_ns;
 
+<<<<<<< Updated upstream
   // ── 3. 重新入队 V4L2 缓冲区 ──
   struct v4l2_buffer rebuf;
   struct v4l2_plane re_planes[VIDEO_MAX_PLANES];
@@ -567,6 +834,12 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
   fb.state = BufferState::QUEUED;
 
   // ── 4. 更新 FPS 统计 ──
+=======
+  // ── 4. 重新入队 V4L2 缓冲区 ──
+  RequeueBuffer(buf_idx);
+
+  // ── 5. 更新 FPS 统计 ──
+>>>>>>> Stashed changes
   impl_->frame_count++;
   auto now = std::chrono::steady_clock::now();
   double elapsed_ms = std::chrono::duration<double, std::milli>(
@@ -580,6 +853,31 @@ PipelineFrame RgaPipeline::CaptureAndConvert() {
 }
 
 // ============================================================================
+<<<<<<< Updated upstream
+=======
+// V4L2 缓冲区重新入队
+// ============================================================================
+
+void RgaPipeline::RequeueBuffer(uint32_t buf_idx) {
+  struct v4l2_buffer rebuf;
+  struct v4l2_plane re_planes[VIDEO_MAX_PLANES];
+  memset(&rebuf, 0, sizeof(rebuf));
+  memset(&re_planes, 0, sizeof(re_planes));
+
+  rebuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  rebuf.memory = V4L2_MEMORY_MMAP;
+  rebuf.index = buf_idx;
+  rebuf.length = 1;
+  rebuf.m.planes = re_planes;
+
+  Xioctl(impl_->v4l2_fd, VIDIOC_QBUF, &rebuf);
+  if (buf_idx < impl_->buffers.size()) {
+    impl_->buffers[buf_idx].state = BufferState::QUEUED;
+  }
+}
+
+// ============================================================================
+>>>>>>> Stashed changes
 // RGA 输出 DMA-BUF 分配
 // ============================================================================
 
@@ -587,6 +885,7 @@ bool RgaPipeline::AllocOutputDmaBuf() {
   const auto& cfg = impl_->rga_cfg;
 
   // 计算输出大小: RGB888 = width * height * 3
+<<<<<<< Updated upstream
   uint32_t dst_size = cfg.dst_width * cfg.dst_height * 3;
 
   // 尝试通过 dma-heap 分配物理连续内存
@@ -594,6 +893,15 @@ bool RgaPipeline::AllocOutputDmaBuf() {
 
   // 首先尝试 system heap
   int heap_fd = open(dma_heap_path, O_RDWR | O_CLOEXEC);
+=======
+  uint32_t dst_size = RgbFrameSize(cfg.dst_width, cfg.dst_height);
+  int dst_format = V4l2ToRgaFormat(cfg.dst_format);
+
+  // 尝试通过 dma-heap 分配物理连续内存
+  const char* dma_heap_path = "/dev/dma_heap/system";
+  int heap_fd = open(dma_heap_path, O_RDWR | O_CLOEXEC);
+
+>>>>>>> Stashed changes
   if (heap_fd >= 0) {
     struct dma_heap_allocation_data heap_data;
     memset(&heap_data, 0, sizeof(heap_data));
@@ -605,7 +913,11 @@ bool RgaPipeline::AllocOutputDmaBuf() {
     close(heap_fd);
 
     if (ret == 0 && heap_data.fd >= 0) {
+<<<<<<< Updated upstream
       // mmap 到用户空间 (可选，NPU 可以直接使用 fd)
+=======
+      // mmap 到用户空间 (NPU 可直接使用 fd 进行 DMA-BUF 零拷贝)
+>>>>>>> Stashed changes
       void* mapped = mmap(nullptr, dst_size, PROT_READ | PROT_WRITE,
                           MAP_SHARED, heap_data.fd, 0);
       if (mapped != MAP_FAILED) {
@@ -613,7 +925,11 @@ bool RgaPipeline::AllocOutputDmaBuf() {
         impl_->output_dma_virt = mapped;
         impl_->output_dma_size = dst_size;
       } else {
+<<<<<<< Updated upstream
         // 即使 mmap 失败，fd 仍然可用
+=======
+        // fd 仍然可用 (无需 mmap)，NPU 驱动可以直接操作 fd
+>>>>>>> Stashed changes
         impl_->output_dma_fd = heap_data.fd;
         impl_->output_dma_virt = nullptr;
         impl_->output_dma_size = dst_size;
@@ -660,7 +976,11 @@ bool RgaPipeline::AllocOutputDmaBuf() {
   }
 
   if (impl_->output_dma_fd < 0) {
+<<<<<<< Updated upstream
     // 极端回退: 使用普通堆内存 (不推荐，失去零拷贝优势)
+=======
+    // 极端回退: 使用普通堆内存 (失去零拷贝优势，但功能可用)
+>>>>>>> Stashed changes
     impl_->output_dma_virt = malloc(dst_size);
     if (!impl_->output_dma_virt) {
       return false;
@@ -668,6 +988,7 @@ bool RgaPipeline::AllocOutputDmaBuf() {
     impl_->output_dma_size = dst_size;
   }
 
+<<<<<<< Updated upstream
   // 用 imimport 将输出 DMA-BUF 包装为 rga_buffer_t
   impl_->dst_buf = imimport(impl_->output_dma_fd, impl_->output_dma_size,
                             cfg.dst_width, cfg.dst_height,
@@ -678,17 +999,56 @@ bool RgaPipeline::AllocOutputDmaBuf() {
     impl_->dst_buf = wrapbuffer_virtualaddr(impl_->output_dma_virt,
                                             cfg.dst_width, cfg.dst_height,
                                             V4l2ToRgaFormat(cfg.dst_format));
+=======
+  // 将输出 DMA-BUF 包装为 rga_buffer_t
+  if (impl_->output_dma_fd >= 0) {
+    // 通过 DMA-BUF fd 导入 RGA
+    impl_->output_handle = importbuffer_fd(impl_->output_dma_fd,
+                                           kDmaBufImportSizeDummy,
+                                           cfg.dst_width, cfg.dst_height,
+                                           dst_format);
+    if (impl_->output_handle > 0) {
+      impl_->dst_buf = wrapbuffer_handle(impl_->output_handle,
+                                         cfg.dst_width, cfg.dst_height,
+                                         dst_format);
+    }
+  }
+
+  if (impl_->dst_buf.handle <= 0) {
+    // fallback: 通过 virtual addr 包装
+    impl_->dst_buf = wrapbuffer_virtualaddr(impl_->output_dma_virt,
+                                            cfg.dst_width, cfg.dst_height,
+                                            dst_format);
+  }
+
+  if (impl_->dst_buf.handle <= 0) {
+    // 输出 buffer 初始化失败
+    return false;
+>>>>>>> Stashed changes
   }
 
   return true;
 }
 
 void RgaPipeline::FreeOutputDmaBuf() {
+<<<<<<< Updated upstream
   if (impl_->dst_buf.handle > 0) {
     imrelease(impl_->dst_buf);
     impl_->dst_buf = {0};
   }
 
+=======
+  // 释放 RGA 输出 handle
+  if (impl_->output_handle > 0) {
+    releasebuffer_handle(impl_->output_handle);
+    impl_->output_handle = 0;
+  }
+
+  // 清空 dst_buf (handle 已释放，避免野指针)
+  memset(&impl_->dst_buf, 0, sizeof(impl_->dst_buf));
+
+  // 释放 DMA-BUF
+>>>>>>> Stashed changes
   if (impl_->output_dma_virt && impl_->output_dma_fd >= 0) {
     munmap(impl_->output_dma_virt, impl_->output_dma_size);
     close(impl_->output_dma_fd);
@@ -706,6 +1066,7 @@ void RgaPipeline::FreeOutputDmaBuf() {
 // ============================================================================
 
 void RgaPipeline::ReleaseFrame(PipelineFrame& frame) {
+<<<<<<< Updated upstream
   if (frame.dma_fd >= 0) {
     // 如果 imexport 产生了新的 fd，需要关闭
     // 如果是预分配的 output_dma_fd，则不关闭
@@ -720,6 +1081,15 @@ void RgaPipeline::ReleaseFrame(PipelineFrame& frame) {
   frame.dma_fd = -1;
   frame.virt_addr = nullptr;
   frame.size = 0;
+=======
+  // 输出帧的 dma_fd 是预分配的 output_dma_fd,
+  // 不由 ReleaseFrame 负责释放 (在 Stop 中统一释放)
+  frame.dma_fd = -1;
+  frame.virt_addr = nullptr;
+  frame.size = 0;
+  frame.width = 0;
+  frame.height = 0;
+>>>>>>> Stashed changes
   frame.sequence = 0;
   frame.timestamp_ns = 0;
 }
@@ -816,11 +1186,14 @@ void RgaPipeline::CalcLetterbox(int src_w, int src_h, int dst_w, int dst_h,
   }
 }
 
+<<<<<<< Updated upstream
 // ============================================================================
 // 未使用的私有方法 (确保符号存在)
 // ============================================================================
 
 // 保留以下函数用于后续扩展
 
+=======
+>>>>>>> Stashed changes
 }  // namespace engine
 }  // namespace rk3588
