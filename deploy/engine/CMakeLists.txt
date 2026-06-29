@@ -104,6 +104,10 @@ set(ENGINE_SOURCES
 )
 
 # ── 共享库: libengine.so ──
+# RGA pipeline uses GCC extensions via im2d.h
+set_source_files_properties(src/rga_pipeline.cpp PROPERTIES
+    COMPILE_FLAGS "-Wno-pedantic")
+
 add_library(engine SHARED ${ENGINE_SOURCES})
 
 target_include_directories(engine
