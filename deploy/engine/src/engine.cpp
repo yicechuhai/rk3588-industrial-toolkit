@@ -268,7 +268,6 @@ std::vector<Detection> Engine::Infer(const uint8_t* frame_data, int width,
     return {};
   }
 
-  auto t_total_start = std::chrono::steady_clock::now();
 
   // ── 步骤 1: 预处理 (RGA 硬件加速) ──
   auto t_pre_start = std::chrono::steady_clock::now();
