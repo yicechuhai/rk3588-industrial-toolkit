@@ -86,7 +86,11 @@ bool ModelLoader::Load(const std::string& model_path,
   }
 
   // 查询输入输出信息
-  QueryIOInfo(impl_->ctx, impl_->io_info);
+  // QueryIOInfo not available in RKNN v2.3.2 — use basic count query
+  rknn_input_output_num io_num;
+  rknn_query(impl_->ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
+  impl_->io_info.num_inputs = io_num.n_input;
+  impl_->io_info.num_outputs = io_num.n_output;
 
   impl_->loaded = true;
   return true;
@@ -96,6 +100,7 @@ bool ModelLoader::Load(const std::string& model_path,
 // 查询模型 IO 信息
 // ============================================================================
 
+/* QueryIOInfo requires newer RKNN API
 void ModelLoader::QueryIOInfo(rknn_context ctx, ModelIOInfo& io_info) {
   // 查询输入输出数量
   rknn_input_output_num io_num;
@@ -149,6 +154,7 @@ void ModelLoader::QueryIOInfo(rknn_context ctx, ModelIOInfo& io_info) {
     io_info.outputs.push_back(info);
   }
 }
+*/
 
 // ============================================================================
 // 公共接口
