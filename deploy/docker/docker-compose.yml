@@ -1,0 +1,181 @@
+﻿#===============================================================================
+# RK3588 Industrial Toolkit — Docker Compose 服务编排
+#
+# 使用方式:
+#   # ARM64 目标平台 (默认)
+#   docker compose up -d
+#
+#   # 使用 ARM64 兼容检查
+#   docker compose --profile arm64 up -d
+#
+#   # 仅启动特定服务
+#   docker compose up -d inference modbus
+#
+#   # 查看日志
+#   docker compose logs -f
+#===============================================================================
+
+version: "3.9"
+
+#===============================================================================
+# 服务定义
+#===============================================================================
+services:
+
+  #---------------------------------------------------------------------------
+  # 推理引擎服务 — 零拷贝 NPU 推理
+  #---------------------------------------------------------------------------
+  inference:
+    image: rk3588-toolkit:latest
+    container_name: rk3588-inference
+    restart: unless-stopped
+    command:
+      - "/opt/rk3588-toolkit/bin/engine_server"
+      - "--port=50051"
+      - "--config=/opt/rk3588-toolkit/configs/global_config.yaml"
+      - "--log-dir=/opt/rk3588-toolkit/logs"
+    ports:
+      - "50051:50051"
+    volumes:
+      # 配置文件
+      - ../configs/yaml_templates:/opt/rk3588-toolkit/configs:ro
+      # 模型文件
+      - ./models:/opt/rk3588-toolkit/models:ro
+      # 日志
+      - ./logs/inference:/opt/rk3588-toolkit/logs
+    devices:
+      # NPU 设备 — RK3588 推理加速
+      - /dev/rknpu:/dev/rknpu
+      # RGA 设备 — 图像硬件加速
+      - /dev/rga:/dev/rga
+      # DRM 渲染节点 — 零拷贝 DMA-BUF
+      - /dev/dri:/dev/dri
+      # DMA-BUF 堆
+      - /dev/dma_heap:/dev/dma_heap
+    environment:
+      - RKNN_LOG_LEVEL=1
+    networks:
+      - toolkit-net
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    profiles:
+      - all
+      - inference-only
+
+  #---------------------------------------------------------------------------
+  # Modbus TCP Server — 工业协议适配
+  #---------------------------------------------------------------------------
+  modbus:
+    image: rk3588-toolkit:latest
+    container_name: rk3588-modbus
+    restart: unless-stopped
+    command:
+      - "/opt/rk3588-toolkit/bin/modbus_server"
+      - "--port=502"
+      - "--config=/opt/rk3588-toolkit/configs/modbus_mapping.yaml"
+      - "--log-dir=/opt/rk3588-toolkit/logs"
+    ports:
+      - "502:502"
+    volumes:
+      - ../configs/yaml_templates:/opt/rk3588-toolkit/configs:ro
+      - ./logs/modbus:/opt/rk3588-toolkit/logs
+    depends_on:
+      inference:
+        condition: service_started
+    networks:
+      - toolkit-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo -ne '\x00\x00\x00\x00\x00\x00' | timeout 3 nc -w 1 localhost 502 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - all
+      - modbus-only
+
+  #---------------------------------------------------------------------------
+  # OPC UA Server — 工业物联网协议
+  #---------------------------------------------------------------------------
+  opcua:
+    image: rk3588-toolkit:latest
+    container_name: rk3588-opcua
+    restart: unless-stopped
+    command:
+      - "/opt/rk3588-toolkit/bin/opcua_server"
+      - "--port=4840"
+      - "--config=/opt/rk3588-toolkit/configs/opcua_server.yaml"
+      - "--log-dir=/opt/rk3588-toolkit/logs"
+    ports:
+      - "4840:4840"
+    volumes:
+      - ../configs/yaml_templates:/opt/rk3588-toolkit/configs:ro
+      - ./logs/opcua:/opt/rk3588-toolkit/logs
+    depends_on:
+      inference:
+        condition: service_started
+    networks:
+      - toolkit-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo -n | timeout 3 nc -w 1 localhost 4840 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - all
+      - opcua-only
+
+  #---------------------------------------------------------------------------
+  # 全合一模式 — 所有服务跑在同一个容器内 (兼容旧版 entrypoint.sh)
+  #---------------------------------------------------------------------------
+  all-in-one:
+    image: rk3588-toolkit:latest
+    container_name: rk3588-all-in-one
+    restart: unless-stopped
+    ports:
+      - "502:502"
+      - "4840:4840"
+      - "50051:50051"
+    volumes:
+      - ../configs/yaml_templates:/opt/rk3588-toolkit/configs:ro
+      - ./models:/opt/rk3588-toolkit/models:ro
+      - ./logs:/opt/rk3588-toolkit/logs
+    devices:
+      - /dev/rknpu:/dev/rknpu
+      - /dev/rga:/dev/rga
+      - /dev/dri:/dev/dri
+      - /dev/dma_heap:/dev/dma_heap
+    environment:
+      - INFERENCE_PORT=50051
+      - MODBUS_PORT=502
+      - OPCUA_PORT=4840
+    networks:
+      - toolkit-net
+    healthcheck:
+      test: ["CMD", "bash", "-c", "kill -0 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    profiles:
+      - all-in-one
+
+#===============================================================================
+# 网络
+#===============================================================================
+networks:
+  toolkit-net:
+    driver: bridge
+    name: rk3588-toolkit-net
+
+#===============================================================================
+# 卷 (本地持久化)
+#===============================================================================
+volumes:
+  logs:
+    driver: local
