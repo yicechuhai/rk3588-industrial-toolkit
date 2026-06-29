@@ -46,15 +46,13 @@ struct Engine::Impl {
   bool model_loaded = false;
   bool ready = false;
 
-  // DMA-BUF 内存
-  struct DmaBufMem {
-    int fd = -1;
-    void* virt_addr = nullptr;
+  // IO buffers (standard RKNN v1 API)
+  struct IOBuffer {
+    void* data = nullptr;
     uint32_t size = 0;
-    rknn_tensor_mem* mem = nullptr;
   };
-  std::vector<DmaBufMem> input_mems;
-  std::vector<DmaBufMem> output_mems;
+  std::vector<IOBuffer> input_bufs;
+  std::vector<IOBuffer> output_bufs;
 
   // 性能统计
   InferenceStats stats;
@@ -209,77 +207,53 @@ bool Engine::AllocateDmaBufTensors() {
     return false;
   }
 
-  auto ctx = impl_->model_loader->GetContext();
   auto io_info = impl_->model_loader->GetIOInfo();
 
-  // 分配输入 DMA-BUF 内存
+  // Allocate input buffers (standard malloc, no DMA-BUF in RKNN v2.3.2)
   for (const auto& input : io_info.inputs) {
-    rknn_tensor_mem* mem = rknn_create_memory(ctx, input.size);
-    if (!mem) {
+    IOBuffer buf;
+    buf.size = input.size;
+    buf.data = std::aligned_alloc(64, input.size);
+    if (!buf.data) {
       ReleaseDmaBufTensors();
       return false;
     }
-
-    // 将内存绑定为输入
-    int ret = rknn_set_io_mem(ctx, mem, &input.attrs);
-    if (ret < 0) {
-      rknn_destroy_memory(ctx, mem);
-      ReleaseDmaBufTensors();
-      return false;
-    }
-
-    Impl::DmaBufMem buf_mem;
-    buf_mem.mem = mem;
-    buf_mem.virt_addr = mem->virt_addr;
-    buf_mem.fd = mem->fd;
-    buf_mem.size = mem->size;
-    impl_->input_mems.push_back(buf_mem);
+    std::memset(buf.data, 0, buf.size);
+    impl_->input_bufs.push_back(buf);
   }
 
-  // 分配输出 DMA-BUF 内存
+  // Allocate output buffers
   for (const auto& output : io_info.outputs) {
-    rknn_tensor_mem* mem = rknn_create_memory(ctx, output.size);
-    if (!mem) {
+    IOBuffer buf;
+    buf.size = output.size;
+    buf.data = std::aligned_alloc(64, output.size);
+    if (!buf.data) {
       ReleaseDmaBufTensors();
       return false;
     }
-
-    int ret = rknn_set_io_mem(ctx, mem, &output.attrs);
-    if (ret < 0) {
-      rknn_destroy_memory(ctx, mem);
-      ReleaseDmaBufTensors();
-      return false;
-    }
-
-    Impl::DmaBufMem buf_mem;
-    buf_mem.mem = mem;
-    buf_mem.virt_addr = mem->virt_addr;
-    buf_mem.fd = mem->fd;
-    buf_mem.size = mem->size;
-    impl_->output_mems.push_back(buf_mem);
+    std::memset(buf.data, 0, buf.size);
+    impl_->output_bufs.push_back(buf);
   }
 
   return true;
 }
 
 void Engine::ReleaseDmaBufTensors() {
-  auto ctx = impl_->model_loader ? impl_->model_loader->GetContext() : nullptr;
-
-  for (auto& mem : impl_->input_mems) {
-    if (mem.mem && ctx) {
-      rknn_destroy_memory(ctx, mem.mem);
-      mem.mem = nullptr;
+  for (auto& buf : impl_->input_bufs) {
+    if (buf.data) {
+      std::free(buf.data);
+      buf.data = nullptr;
     }
   }
-  impl_->input_mems.clear();
+  impl_->input_bufs.clear();
 
-  for (auto& mem : impl_->output_mems) {
-    if (mem.mem && ctx) {
-      rknn_destroy_memory(ctx, mem.mem);
-      mem.mem = nullptr;
+  for (auto& buf : impl_->output_bufs) {
+    if (buf.data) {
+      std::free(buf.data);
+      buf.data = nullptr;
     }
   }
-  impl_->output_mems.clear();
+  impl_->output_bufs.clear();
 }
 
 // ============================================================================
@@ -309,33 +283,38 @@ std::vector<Detection> Engine::Infer(const uint8_t* frame_data, int width,
   auto t_pre_end = std::chrono::steady_clock::now();
   double pre_ms = std::chrono::duration<double, std::milli>(t_pre_end - t_pre_start).count();
 
-  // ── 步骤 2: 拷贝预处理数据到 NPU 输入 DMA-BUF ──
-  if (!impl_->input_mems.empty() && impl_->input_mems[0].virt_addr &&
-      tensor.data && tensor.size > 0) {
-    size_t copy_size = std::min(tensor.size,
-                                impl_->input_mems[0].size);
-    std::memcpy(impl_->input_mems[0].virt_addr, tensor.data, copy_size);
+  // ── 步骤 2: 设置 NPU 输入 (RKNN v1 API) ──
+  auto ctx = impl_->model_loader->GetContext();
+  auto io_info = impl_->model_loader->GetIOInfo();
 
-    // 刷新缓存以确保 NPU 可见 (DMA-BUF 场景)
-    rknn_mem_sync(impl_->model_loader->GetContext(),
-                  impl_->input_mems[0].mem, RKNN_MEM_SYNC_TO_DEVICE);
+  std::vector<rknn_input> inputs(io_info.inputs.size());
+  for (size_t i = 0; i < io_info.inputs.size() && i < inputs.size(); ++i) {
+    std::memset(&inputs[i], 0, sizeof(rknn_input));
+    inputs[i].index = io_info.inputs[i].index;
+    inputs[i].type = RKNN_TENSOR_UINT8;
+    inputs[i].size = tensor.size;
+    inputs[i].buf = const_cast<uint8_t*>(tensor.data);
   }
+  rknn_inputs_set(ctx, static_cast<uint32_t>(inputs.size()), inputs.data());
 
   impl_->preprocessor->ReleaseTensor(const_cast<PreprocessedTensor&>(tensor));
 
   // ── 步骤 3: NPU 推理 ──
   auto t_infer_start = std::chrono::steady_clock::now();
 
-  int ret = rknn_run(impl_->model_loader->GetContext(), nullptr);
+  int ret = rknn_run(ctx, nullptr);
   if (ret < 0) {
     return {};
   }
 
-  // 同步输出 DMA-BUF (确保 CPU 可读)
-  for (auto& out_mem : impl_->output_mems) {
-    rknn_mem_sync(impl_->model_loader->GetContext(),
-                  out_mem.mem, RKNN_MEM_SYNC_FROM_DEVICE);
+  // Get outputs via standard API
+  std::vector<rknn_output> outputs(io_info.outputs.size());
+  for (size_t i = 0; i < io_info.outputs.size(); ++i) {
+    std::memset(&outputs[i], 0, sizeof(rknn_output));
+    outputs[i].want_float = 1;
+    outputs[i].is_prealloc = 0;
   }
+  rknn_outputs_get(ctx, static_cast<uint32_t>(outputs.size()), outputs.data(), nullptr);
 
   auto t_infer_end = std::chrono::steady_clock::now();
   double infer_ms = std::chrono::duration<double, std::milli>(
@@ -346,15 +325,18 @@ std::vector<Detection> Engine::Infer(const uint8_t* frame_data, int width,
 
   std::vector<const float*> output_ptrs;
   std::vector<uint32_t> output_sizes;
-  for (auto& out_mem : impl_->output_mems) {
-    output_ptrs.push_back(static_cast<const float*>(out_mem.virt_addr));
-    output_sizes.push_back(out_mem.size);
+  for (auto& out : outputs) {
+    output_ptrs.push_back(static_cast<const float*>(out.buf));
+    output_sizes.push_back(out.size);
   }
 
   auto detections = impl_->postprocessor->Process(
       output_ptrs.data(), output_sizes.data(),
       static_cast<uint32_t>(output_ptrs.size()),
       impl_->yolo_format);
+
+  // Release RKNN outputs
+  rknn_outputs_release(ctx, static_cast<uint32_t>(outputs.size()), outputs.data());
 
   auto t_post_end = std::chrono::steady_clock::now();
   double post_ms = std::chrono::duration<double, std::milli>(

@@ -12,6 +12,7 @@
  */
 
 #include <cstdint>
+#include <rknn/rknn_api.h>
 #include <string>
 #include <vector>
 

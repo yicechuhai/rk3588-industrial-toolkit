@@ -16,7 +16,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "rknn_api.h"
+#include <rknn/rknn_api.h>
 
 namespace rk3588 {
 namespace engine {

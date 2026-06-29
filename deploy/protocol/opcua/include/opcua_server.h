@@ -1,8 +1,8 @@
 #ifndef RK3588_PROTOCOL_OPCUA_SERVER_H_
 #define RK3588_PROTOCOL_OPCUA_SERVER_H_
 
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
+#include <open62541.h>
+#include // open62541.h includes default config
 
 #include <atomic>
 #include <memory>

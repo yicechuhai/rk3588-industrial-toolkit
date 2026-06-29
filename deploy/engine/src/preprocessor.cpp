@@ -25,7 +25,7 @@
 #include <unistd.h>
 
 // RGA 库 — Rockchip 硬件加速
-#include "RgaApi.h"
+#include <rga/RgaApi.h>
 
 // DMA-BUF 分配 (Linux 内核接口)
 #include <linux/dma-buf.h>
