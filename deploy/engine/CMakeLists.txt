@@ -156,6 +156,49 @@ install(TARGETS demo_inference
     RUNTIME DESTINATION bin
 )
 
+
+# ━━ Python 绑定 (pybind11) ━━
+option(BUILD_PYTHON "Build Python bindings (pybind11 + NumPy)" OFF)
+
+if(BUILD_PYTHON)
+    find_package(pybind11 REQUIRED)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter Development NumPy)
+
+    # 确认 pybind11 的 NumPy 支持
+    if(NOT pybind11_FOUND)
+        message(FATAL_ERROR "pybind11 not found. Install: pip install pybind11")
+    endif()
+
+    pybind11_add_module(rknn_engine_python
+        python/bindings.cpp
+    )
+
+    target_include_directories(rknn_engine_python
+        PRIVATE
+            ${ENGINE_INCLUDE_DIRS}
+            ${YAML_CPP_INCLUDE_DIR}
+            ${Python3_NumPy_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(rknn_engine_python
+        PRIVATE
+            engine
+            Python3::Python
+    )
+
+    target_compile_definitions(rknn_engine_python PRIVATE HAS_RGA=$<BOOL:${HAS_RGA}>)
+
+    set_target_properties(rknn_engine_python PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python"
+    )
+
+    install(TARGETS rknn_engine_python
+        LIBRARY DESTINATION lib/python3/dist-packages/rknn_engine
+    )
+
+    message(STATUS "  + rknn_engine_python  Python 绑定 (NumPy 零拷贝)")
+endif()
+
 # ── 编译信息摘要 ──
 message(STATUS "")
 message(STATUS "RK3588 推理引擎 构建配置")
