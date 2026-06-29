@@ -692,3 +692,84 @@ install_deb() {
     echo ""
 }
 
+#===============================================================================
+# 汇总 / Summary
+#===============================================================================
+print_summary() {
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  编译汇总 / Build Summary"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  当前内核:    ${DETECTED_KV}"
+    echo "  BSP 版本:    ${MATCHED_BSP}"
+    echo "  RT 补丁:     ${RT_PATCH_FILE} (${RT_VERSION})"
+    echo "  内核源码:    ${KERNEL_SRC_DIR:-N/A}"
+    echo "  输出目录:    ${OUTPUT_DIR}"
+    if [[ -n "$DEB_FILE" ]]; then
+        echo "  .deb 包:     ${DEB_FILE}"
+    fi
+    echo "  日志文件:    ${BUILD_LOG}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
+
+#===============================================================================
+# 主流程 / Main
+#===============================================================================
+main() {
+    print_banner
+
+    parse_args "$@"
+
+    # 初始化日志
+    mkdir -p "$(dirname "$BUILD_LOG")"
+    echo "RK3588 PREEMPT_RT Kernel Build Log - $(date)" > "$BUILD_LOG"
+    echo "========================================" >> "$BUILD_LOG"
+
+    preflight_check
+
+    detect_kernel_version
+
+    lookup_rt_patch "$DETECTED_KV"
+
+    # 干跑模式：检测完成后退出
+    if $DRY_RUN; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "  ✅ 干跑检测完成 / Dry-run complete"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "  检测结果 / Detection results:"
+        echo "  ├─ 当前内核 / Running kernel: ${DETECTED_KV}"
+        echo "  ├─ BSP 版本  / BSP version:   ${MATCHED_BSP}"
+        echo "  ├─ RT 补丁   / RT patch:      ${RT_PATCH_FILE} (${RT_VERSION}))"
+        echo "  ├─ 内核源码  / Kernel source: ${KERNEL_SRC_URL}"
+        echo "  └─ 补丁 URL  / Patch URL:     ${RT_PATCH_URL}"
+        echo ""
+        echo "  执行编译命令 / To build, run:"
+        echo "    bash build_rt_kernel.sh"
+        echo ""
+        exit 0
+    fi
+
+    download_sources
+    extract_and_patch
+    configure_kernel
+    build_kernel
+    package_deb
+
+    print_summary
+
+    if $DO_INSTALL; then
+        install_deb
+    else
+        echo -e "  💡 提示 / Tip: 使用 --install 自动安装 .deb 包"
+        echo -e "     Use --install to auto-install the .deb package"
+        echo ""
+    fi
+
+    echo -e "${GREEN}✅ PREEMPT_RT 内核编译完成! / Build successful!${NC}"
+    echo ""
+}
+
+main "$@"
