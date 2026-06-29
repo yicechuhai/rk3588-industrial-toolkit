@@ -15,6 +15,7 @@
 
 // YAML 解析 — 使用 yaml-cpp 库
 #include "yaml-cpp/yaml.h"
+#include <memory>
 
 namespace rk3588 {
 namespace engine {
