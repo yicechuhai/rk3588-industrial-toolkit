@@ -1,0 +1,80 @@
+﻿# ============================================================================
+# RK3588 推理引擎配置模板 (engine.yaml)
+# 此文件由 web_config.sh 或 install.sh 自动生成/覆盖
+# ============================================================================
+
+version: "1.0"
+
+# ── 模型配置 ──────────────────────────────────────────────────────────────
+model:
+  path: "./models/yolov5s.rknn"    # RKNN 模型文件路径（支持相对/绝对路径）
+  input_size: [640, 640]           # 模型输入尺寸 [宽, 高]
+  num_classes: 80                  # COCO 类别数
+  conf_threshold: 0.5              # 置信度阈值 (0.0 ~ 1.0)
+  nms_threshold: 0.45              # NMS 非极大值抑制阈值
+
+  # 可选的备用模型（支持热切换）
+  backup:
+    path: "./models/yolov5n.rknn"
+    input_size: [640, 640]
+
+# ── NPU 配置 ──────────────────────────────────────────────────────────────
+npu:
+  core_mask: 0x7                   # NPU 核心掩码: 0x1=单核, 0x3=双核, 0x7=三核
+  frequency: "auto"                # 频率策略: auto | 1GHz | 900MHz | 800MHz
+  perf_level: "high"               # 性能级别: high | normal | low
+  dma_buf: true                    # 启用 DMA-BUF 零拷贝
+
+# ── 预处理配置 ────────────────────────────────────────────────────────────
+preprocess:
+  mean: [0, 0, 0]                  # 均值归一化 (BGR)
+  std: [255, 255, 255]            # 标准差归一化 (BGR)
+  letterbox: true                  # Letterbox 保持宽高比
+  color_space: "bgr"              # 色彩空间: bgr | rgb
+
+# ── 后处理配置 ────────────────────────────────────────────────────────────
+postprocess:
+  enable_tracking: false           # 启用目标追踪（需配套 tracker 模块）
+  draw_boxes: true                 # 绘制检测框（OSD 叠加）
+  save_detections: false           # 保存检测结果图片
+  output_dir: "./output/detections"
+
+# ── 输入源配置 ────────────────────────────────────────────────────────────
+input:
+  source: "camera"                 # 输入源: camera | rtsp | file | test_pattern
+  camera:
+    device: "/dev/video0"          # 摄像头设备节点
+    width: 1920
+    height: 1080
+    fps: 30
+    pixel_format: "NV12"           # 像素格式（RK3588 建议 NV12/YUYV）
+  rtsp:
+    url: "rtsp://192.168.1.100:554/stream"
+    buffer_size: 4
+    reconnect_interval: 3
+  file:
+    path: "./data/test_video.mp4"
+    loop: true
+
+# ── 协议输出配置 ──────────────────────────────────────────────────────────
+protocol:
+  modbus:
+    enabled: false
+    port: 502                       # Modbus TCP 端口
+  opcua:
+    enabled: false
+    endpoint: "opc.tcp://0.0.0.0:4840"
+
+# ── 日志与监控 ────────────────────────────────────────────────────────────
+logging:
+  level: "info"                     # debug | info | warn | error
+  file: "/var/log/rk3588-toolkit/inference.log"
+  max_size_mb: 100
+  stats_interval: 60                # 每秒统计输出间隔
+
+# ── 故障恢复 ──────────────────────────────────────────────────────────────
+recovery:
+  auto_restart: true
+  max_restarts: 5
+  restart_delay: 3                  # 重启间隔（秒）
+  watchdog: true

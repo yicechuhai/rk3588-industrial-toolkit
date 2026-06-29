@@ -65,12 +65,32 @@ find_library(RGA_LIB rga
 )
 message(STATUS "Found librga: ${RGA_LIB}")
 
+# RGA 头文件路径 (librga 2.0 im2d API)
+find_path(RGA_INCLUDE_DIR
+    NAMES im2d.hpp
+    PATHS
+        /usr/include
+        /usr/include/rga
+        /usr/include/librga
+        /usr/local/include
+        /usr/local/include/rga
+        /opt/rk3588-toolkit/include
+        /opt/rk3588-toolkit/include/rga
+)
+if(RGA_INCLUDE_DIR)
+    message(STATUS "Found RGA headers: ${RGA_INCLUDE_DIR}")
+    list(APPEND ENGINE_INCLUDE_DIRS ${RGA_INCLUDE_DIR})
+else()
+    message(WARNING "RGA headers (im2d.hpp) not found - rga_pipeline may not compile")
+endif()
+
 # yaml-cpp (YAML 配置解析)
 find_package(yaml-cpp REQUIRED)
 message(STATUS "Found yaml-cpp: ${YAML_CPP_INCLUDE_DIR}")
 
 # ── 头文件路径 ──
 set(ENGINE_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
+set(ENGINE_INCLUDE_DIRS ${ENGINE_INCLUDE_DIR})
 
 # ── 源文件 ──
 set(ENGINE_SOURCES
@@ -78,6 +98,7 @@ set(ENGINE_SOURCES
     src/model_loader.cpp
     src/preprocessor.cpp
     src/postprocessor.cpp
+    src/rga_pipeline.cpp
 )
 
 # ── 共享库: libengine.so ──
@@ -85,7 +106,7 @@ add_library(engine SHARED ${ENGINE_SOURCES})
 
 target_include_directories(engine
     PUBLIC
-        ${ENGINE_INCLUDE_DIR}
+        ${ENGINE_INCLUDE_DIRS}
         ${YAML_CPP_INCLUDE_DIR}
 )
 

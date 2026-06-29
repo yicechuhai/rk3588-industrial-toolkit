@@ -10,7 +10,7 @@
 
 set -e
 
-VERSION="v1.0.0"
+VERSION="v2.0.0"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,6 +21,8 @@ NC='\033[0m'
 #===============================================================================
 # Global configuration
 #===============================================================================
+# Default fallback values (used when version_matrix.csv is unavailable
+# or the running kernel version is not found in the matrix)
 KERNEL_BASE_VER="6.1"
 KERNEL_FULL_VER="6.1.141"
 RT_PATCH_VER="6.1.141-rt52"
@@ -41,6 +43,14 @@ KERNEL_CONFIG="${KERNEL_SRC_DIR}/.config"
 BOOT_CMD_LINE_FILE="/boot/cmdline.txt"
 EXTLINUX_CONF="/boot/extlinux/extlinux.conf"
 ARMBIAN_ENV="/boot/armbianEnv.txt"
+
+# Path to version_matrix.csv (resolved relative to this script's location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_MATRIX="${SCRIPT_DIR}/version_matrix.csv"
+
+# Detected board info (filled by auto_detect_kernel_version)
+DETECTED_BOARD=""
+DETECTED_BSP_KERNEL=""
 
 #===============================================================================
 # Helper functions
@@ -65,14 +75,19 @@ usage() {
     echo "  --config-only     Only configure kernel, skip build"
     echo "  --install-only    Only install pre-built kernel"
     echo "  --dry-run         Check environment only"
+    echo "  --list-boards     List supported boards from version_matrix.csv"
+    echo "  --version         Print detected config and exit"
     echo "  --help, -h        Show this help"
     echo ""
     echo "Examples:"
-    echo "  sudo bash apply_rt_patch.sh                # Full workflow"
+    echo "  sudo bash apply_rt_patch.sh                # Auto-detect + full workflow"
     echo "  sudo bash apply_rt_patch.sh --dry-run      # Check only"
-    echo "  sudo bash apply_rt_patch.sh --config-only  # Configure only"
+    echo "  sudo bash apply_rt_patch.sh --list-boards  # List supported boards"
+    echo "  sudo bash apply_rt_patch.sh --version      # Show detected config"
     echo ""
     echo "Env vars:"
+    echo "  KERNEL_FULL_VER=6.1.141       Override kernel version"
+    echo "  RT_PATCH_VER=6.1.141-rt52     Override RT patch version"
     echo "  LOCAL_KERNEL_TAR=/path/to/linux-6.1.141.tar.xz"
     echo "  LOCAL_RT_PATCH=/path/to/patch-6.1.141-rt52.patch.xz"
 }
@@ -82,6 +97,266 @@ check_root() {
         log_error "Please run as root: sudo bash $0"
         exit 1
     fi
+}
+
+#===============================================================================
+# BSP kernel version auto-detection from version_matrix.csv
+#===============================================================================
+detect_board_model() {
+    local model_file="/proc/device-tree/model"
+    if [ -f "$model_file" ]; then
+        tr -d '\0' < "$model_file"
+    else
+        echo ""
+    fi
+}
+
+# Map a board model string from device-tree to a canonical board key
+# used in version_matrix.csv. Returns empty string if unknown.
+canonical_board_name() {
+    local raw="$1"
+    case "$raw" in
+        *"NanoPC T6"*|*"nanopc-t6"*|*"NanoPC-T6"*)   echo "NanoPC T6" ;;
+        *"LubanCat"*|*"lubancat"*|*"LubanCat 8"*)     echo "LubanCat 8" ;;
+        *"Rock 5B"*|*"ROCK 5B"*|*"rock-5b"*)          echo "Radxa Rock 5B" ;;
+        *"Orange Pi 5 Plus"*|*"orangepi5-plus"*)       echo "Orange Pi 5 Plus" ;;
+        *"Orange Pi 5"*|*"orangepi5"*)                 echo "Orange Pi 5" ;;
+        *"OK3588"*|*"forlinx"*|*"Forlinx"*)            echo "Forlinx OK3588" ;;
+        *"EVB1"*|*"RK3588 EVB"*)                       echo "Rockchip EVB1" ;;
+        *"R58X"*|*"Mekotronics"*)                      echo "Mekotronics R58X" ;;
+        *"HININK"*|*"hinink"*)                         echo "HININK RK3588" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Strip trailing kernel suffixes like -rockchip, -rk3588, -arm64, etc.
+# to get the raw version (e.g. 6.1.141-rockchip -> 6.1.141).
+strip_kernel_suffix() {
+    local ver="$1"
+    echo "$ver" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/'
+}
+
+# Get the major.minor base version from a full version string.
+kernel_base_ver() {
+    local full="$1"
+    echo "$full" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/'
+}
+
+# Read version_matrix.csv, find the row matching the given board and kernel version.
+# Returns the matching RT patch version, or empty if no match.
+lookup_rt_patch() {
+    local board="$1"
+    local kernel="$2"
+    local csv="$3"
+
+    if [ ! -f "$csv" ]; then
+        echo ""
+        return
+    fi
+
+    # Skip comment lines and header, parse CSV
+    # CSV columns: board,bsp_kernel,rt_patch,rt_patch_url,...
+    while IFS=, read -r csv_board csv_bsp csv_rt_patch csv_rt_url rest; do
+        # Skip comments and header
+        [[ "$csv_board" =~ ^# ]] && continue
+        [[ "$csv_board" == "board" ]] && continue
+        [ -z "$csv_board" ] && continue
+
+        # Trim whitespace
+        csv_board=$(echo "$csv_board" | xargs)
+        csv_bsp=$(echo "$csv_bsp" | xargs)
+
+        if [ "$csv_board" = "$board" ] && [ "$csv_bsp" = "$kernel" ]; then
+            echo "$(echo "$csv_rt_patch" | xargs)"
+            return
+        fi
+    done < "$csv"
+
+    echo ""
+    return
+}
+
+# Build the RT patch download URL from patch version.
+build_rt_patch_url() {
+    local patch_ver="$1"
+    # patch-6.1.141-rt52 -> base=6.1
+    local base=$(echo "$patch_ver" | sed -E 's/^patch-([0-9]+\.[0-9]+).*/\1/')
+    if [ -z "$base" ]; then
+        base=$(echo "$patch_ver" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+    fi
+    echo "https://cdn.kernel.org/pub/linux/kernel/projects/rt/${base}/older/patch-${patch_ver}.patch.xz"
+}
+
+# Auto-detect the BSP kernel version by inspecting the running kernel and
+# reading the device-tree model, then looking up version_matrix.csv.
+# Falls back to hardcoded defaults if detection fails.
+auto_detect_versions() {
+    echo ""
+    echo -e "${CYAN}--- 0. BSP Kernel Version Auto-Detection ---${NC}"
+
+    local current_kernel=$(uname -r)
+    local raw_board=$(detect_board_model)
+    local stripped_kernel=$(strip_kernel_suffix "$current_kernel")
+
+    DETECTED_BOARD=$(canonical_board_name "$raw_board")
+    DETECTED_BSP_KERNEL="$stripped_kernel"
+
+    log_info "Running kernel: ${current_kernel}"
+    log_info "Stripped version: ${stripped_kernel}"
+    if [ -n "$raw_board" ]; then
+        log_info "Detected board: ${raw_board}"
+    fi
+    if [ -n "$DETECTED_BOARD" ]; then
+        log_info "Canonical board: ${DETECTED_BOARD}"
+    fi
+
+    # Allow manual override via env vars (highest priority)
+    if [ -n "$KERNEL_FULL_VER" ]; then
+        log_info "Kernel version overridden by env: ${KERNEL_FULL_VER}"
+    fi
+    if [ -n "$RT_PATCH_VER" ]; then
+        log_info "RT patch overridden by env: ${RT_PATCH_VER}"
+    fi
+
+    # If env overrides are set, use them and skip auto-detection
+    if [ -n "$KERNEL_FULL_VER" ] || [ -n "$RT_PATCH_VER" ]; then
+        log_info "Using environment variable overrides"
+        # Recompute dependent variables
+        KERNEL_BASE_VER=$(kernel_base_ver "$KERNEL_FULL_VER")
+        KERNEL_SRC_DIR="${WORK_DIR}/linux-${KERNEL_FULL_VER}"
+        BUILD_LOG="${WORK_DIR}/build_${KERNEL_FULL_VER}_rt.log"
+        KERNEL_TAR_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_BASE_VER%%.*}.x/linux-${KERNEL_FULL_VER}.tar.xz"
+        KERNEL_TAR_FILE="${WORK_DIR}/linux-${KERNEL_FULL_VER}.tar.xz"
+        RT_PATCH_URL="https://cdn.kernel.org/pub/linux/kernel/projects/rt/${KERNEL_BASE_VER}/older/patch-${RT_PATCH_VER}.patch.xz"
+        RT_PATCH_FILE="${WORK_DIR}/patch-${RT_PATCH_VER}.patch.xz"
+        RT_PATCH_RAW="${WORK_DIR}/patch-${RT_PATCH_VER}.patch"
+        return
+    fi
+
+    # Try to look up from version_matrix.csv
+    if [ -f "$VERSION_MATRIX" ]; then
+        log_info "Reading version matrix: ${VERSION_MATRIX}"
+
+        # Step 1: If we know the canonical board, try board + kernel match
+        if [ -n "$DETECTED_BOARD" ]; then
+            local matched_patch=$(lookup_rt_patch "$DETECTED_BOARD" "$DETECTED_BSP_KERNEL" "$VERSION_MATRIX")
+            if [ -n "$matched_patch" ]; then
+                RT_PATCH_VER="$matched_patch"
+                KERNEL_FULL_VER="$DETECTED_BSP_KERNEL"
+                KERNEL_BASE_VER=$(kernel_base_ver "$KERNEL_FULL_VER")
+                log_info "Found exact match: board=${DETECTED_BOARD}, kernel=${KERNEL_FULL_VER}, patch=${RT_PATCH_VER}"
+            else
+                # Step 2: Board known but kernel version not in matrix — try any board match
+                log_warn "No exact match for ${DETECTED_BOARD} + kernel ${DETECTED_BSP_KERNEL}"
+                log_warn "Falling back to generic kernel version lookup..."
+            fi
+        fi
+
+        # Step 3: Try generic kernel version lookup (match any board with this kernel)
+        if [ -z "$RT_PATCH_VER" ] || [ "$KERNEL_FULL_VER" = "6.1.141" ]; then
+            local generic_match=""
+            while IFS=, read -r csv_board csv_bsp csv_rt_patch csv_rt_url rest; do
+                [[ "$csv_board" =~ ^# ]] && continue
+                [[ "$csv_board" == "board" ]] && continue
+                [ -z "$csv_board" ] && continue
+
+                csv_bsp=$(echo "$csv_bsp" | xargs)
+                if [ "$csv_bsp" = "$DETECTED_BSP_KERNEL" ]; then
+                    generic_match=$(echo "$csv_rt_patch" | xargs)
+                    break
+                fi
+            done < "$VERSION_MATRIX"
+
+            if [ -n "$generic_match" ]; then
+                RT_PATCH_VER="$generic_match"
+                KERNEL_FULL_VER="$DETECTED_BSP_KERNEL"
+                KERNEL_BASE_VER=$(kernel_base_ver "$KERNEL_FULL_VER")
+                log_info "Generic kernel match: version=${KERNEL_FULL_VER}, patch=${RT_PATCH_VER}"
+            fi
+        fi
+    else
+        log_warn "Version matrix not found: ${VERSION_MATRIX}"
+        log_warn "Falling back to hardcoded defaults"
+    fi
+
+    # Recompute all dependent variables
+    KERNEL_SRC_DIR="${WORK_DIR}/linux-${KERNEL_FULL_VER}"
+    BUILD_LOG="${WORK_DIR}/build_${KERNEL_FULL_VER}_rt.log"
+    KERNEL_TAR_URL="https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_BASE_VER%%.*}.x/linux-${KERNEL_FULL_VER}.tar.xz"
+    KERNEL_TAR_FILE="${WORK_DIR}/linux-${KERNEL_FULL_VER}.tar.xz"
+    RT_PATCH_URL="https://cdn.kernel.org/pub/linux/kernel/projects/rt/${KERNEL_BASE_VER}/older/patch-${RT_PATCH_VER}.patch.xz"
+    RT_PATCH_FILE="${WORK_DIR}/patch-${RT_PATCH_VER}.patch.xz"
+    RT_PATCH_RAW="${WORK_DIR}/patch-${RT_PATCH_VER}.patch"
+
+    log_info "Final config: kernel=${KERNEL_FULL_VER}, rt_patch=${RT_PATCH_VER}"
+    echo ""
+}
+
+# List supported boards from version_matrix.csv
+list_boards() {
+    if [ ! -f "$VERSION_MATRIX" ]; then
+        log_error "Version matrix not found: ${VERSION_MATRIX}"
+        exit 1
+    fi
+
+    echo -e "${CYAN}Supported Boards (from version_matrix.csv)${NC}"
+    echo ""
+    printf "  %-22s %-14s %-18s %-12s\n" "Board" "BSP Kernel" "RT Patch" "Status"
+    printf "  %-22s %-14s %-18s %-12s\n" "---------------------" "-------------" "-----------------" "----------"
+
+    while IFS=, read -r csv_board csv_bsp csv_rt_patch csv_rt_url bsp_source status notes; do
+        [[ "$csv_board" =~ ^# ]] && continue
+        [[ "$csv_board" == "board" ]] && continue
+        [ -z "$csv_board" ] && continue
+
+        local status_display=""
+        case "$(echo "$status" | xargs)" in
+            verified)   status_display="${GREEN}verified${NC}" ;;
+            compatible) status_display="${YELLOW}compatible${NC}" ;;
+            planned)    status_display="${CYAN}planned${NC}" ;;
+            pending)    status_display="${YELLOW}pending${NC}" ;;
+            deprecated) status_display="${RED}deprecated${NC}" ;;
+            *)          status_display="$status" ;;
+        esac
+
+        printf "  %-22s %-14s %-18s %b\n" \
+            "$(echo "$csv_board" | xargs)" \
+            "$(echo "$csv_bsp" | xargs)" \
+            "$(echo "$csv_rt_patch" | xargs)" \
+            "$status_display"
+    done < "$VERSION_MATRIX"
+
+    echo ""
+    echo "  LEGEND:"
+    echo "    ${GREEN}verified${NC}   — Tested and confirmed working"
+    echo "    ${YELLOW}compatible${NC} — Theoretically compatible, needs testing"
+    echo "    ${CYAN}planned${NC}    — Planned for future support"
+    echo "    ${YELLOW}pending${NC}   — Test in progress"
+    echo "    ${RED}deprecated${NC} — No longer supported"
+    echo ""
+}
+
+# Print detected/config info and exit
+print_version_info() {
+    echo -e "${CYAN}Build Configuration${NC}"
+    echo ""
+    echo "  Script version:   ${VERSION}"
+    echo "  Version matrix:   ${VERSION_MATRIX}"
+    echo "  Board:            ${DETECTED_BOARD:-<not detected>}"
+    echo "  BSP kernel:       ${DETECTED_BSP_KERNEL:-<not detected>}"
+    echo ""
+    echo "  Kernel full ver:  ${KERNEL_FULL_VER}"
+    echo "  Kernel base ver:  ${KERNEL_BASE_VER}"
+    echo "  RT patch ver:     ${RT_PATCH_VER}"
+    echo "  Work dir:         ${WORK_DIR}"
+    echo ""
+    echo "  Kernel tarball:   ${KERNEL_TAR_URL}"
+    echo "  RT patch URL:     ${RT_PATCH_URL}"
+    echo ""
+    if [ -f "$VERSION_MATRIX" ]; then
+        echo "  Matrix entries:   $(grep -cEv '^\s*(#|board|$)' "$VERSION_MATRIX") boards"
+    fi
+    exit 0
 }
 
 #===============================================================================
@@ -615,20 +890,37 @@ main() {
     local CONFIG_ONLY=false
     local INSTALL_ONLY=false
     local DRY_RUN=false
+    local LIST_BOARDS=false
+    local SHOW_VERSION=false
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            --config-only)  CONFIG_ONLY=true; shift ;;
-            --install-only) INSTALL_ONLY=true; shift ;;
-            --dry-run)      DRY_RUN=true; shift ;;
-            --help|-h)      usage; exit 0 ;;
-            *)              echo "Unknown option: $1"; usage; exit 1 ;;
+            --config-only)   CONFIG_ONLY=true; shift ;;
+            --install-only)  INSTALL_ONLY=true; shift ;;
+            --dry-run)       DRY_RUN=true; shift ;;
+            --list-boards)   LIST_BOARDS=true; shift ;;
+            --version)       SHOW_VERSION=true; shift ;;
+            --help|-h)       usage; exit 0 ;;
+            *)               echo "Unknown option: $1"; usage; exit 1 ;;
         esac
     done
 
     print_banner
-
     check_root
+
+    # Auto-detect BSP kernel version and matching RT patch
+    auto_detect_versions
+
+    # Mode: list supported boards
+    if [ "$LIST_BOARDS" = true ]; then
+        list_boards
+        exit 0
+    fi
+
+    # Mode: show detected config
+    if [ "$SHOW_VERSION" = true ]; then
+        print_version_info
+    fi
 
     if [ "$DRY_RUN" = true ]; then
         echo -e "${CYAN}--- Dry-Run Mode ---${NC}"
