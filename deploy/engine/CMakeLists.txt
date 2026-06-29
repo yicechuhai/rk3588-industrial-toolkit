@@ -80,6 +80,8 @@ find_path(RGA_INCLUDE_DIR
 if(RGA_INCLUDE_DIR)
     message(STATUS "Found RGA headers: ${RGA_INCLUDE_DIR}")
     list(APPEND ENGINE_INCLUDE_DIRS ${RGA_INCLUDE_DIR})
+    set(HAS_RGA TRUE)
+    add_compile_definitions(HAS_RGA)
 else()
     message(WARNING "RGA headers (im2d.hpp) not found - rga_pipeline may not compile")
 endif()
@@ -98,7 +100,7 @@ set(ENGINE_SOURCES
     src/model_loader.cpp
     src/preprocessor.cpp
     src/postprocessor.cpp
-    # src/rga_pipeline.cpp  # requires im2d.hpp header
+    src/rga_pipeline.cpp
 )
 
 # ── 共享库: libengine.so ──
