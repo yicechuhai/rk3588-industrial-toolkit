@@ -111,6 +111,7 @@ static int V4l2ToRgaFormat(uint32_t v4l2_fmt) {
   }
 }
 
+#if 0  // unused; kept for debugging
 static const char* V4l2FmtName(uint32_t fmt) {
   switch (fmt) {
     case V4L2_PIX_FMT_NV12:    return "NV12";
@@ -125,6 +126,7 @@ static const char* V4l2FmtName(uint32_t fmt) {
     default:                    return "UNKNOWN";
   }
 }
+#endif  // V4l2FmtName
 
 static int ExportV4l2DmaBuf(int v4l2_fd, uint32_t buf_idx) {
   struct v4l2_exportbuffer exp;
