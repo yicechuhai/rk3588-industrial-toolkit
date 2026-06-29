@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #===============================================================================
 # RK3588 Industrial Toolkit - PREEMPT_RT 内核编译脚本
 # Build PREEMPT_RT Kernel for RK3588

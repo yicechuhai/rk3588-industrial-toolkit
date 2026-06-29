@@ -1,4 +1,4 @@
-﻿# test_engine.py — C++ 推理引擎接口契约测试
+# test_engine.py — C++ 推理引擎接口契约测试
 # 测试 deploy/engine/ 的 Engine 类 Python 绑定
 
 import pytest

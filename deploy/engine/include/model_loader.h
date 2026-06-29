@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /**
  * @file model_loader.h

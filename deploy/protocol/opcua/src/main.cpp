@@ -1,4 +1,4 @@
-﻿#include "opcua_server.h"
+#include "opcua_server.h"
 
 #include <csignal>
 #include <cstdlib>

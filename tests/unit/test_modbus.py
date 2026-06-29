@@ -1,4 +1,4 @@
-﻿# test_modbus.py — Modbus TCP 寄存器读写测试
+# test_modbus.py — Modbus TCP 寄存器读写测试
 # 测试部署在 deploy/protocol/modbus/ 下的 ModbusServer 和 RegisterMap
 
 import pytest

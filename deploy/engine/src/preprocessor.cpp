@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file preprocessor.cpp
  * @brief RGA 硬件加速图像预处理实现
  *

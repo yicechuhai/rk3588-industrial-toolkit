@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /**
  * @file postprocessor.h

@@ -1,4 +1,4 @@
-﻿# test_pipeline.py — 端到端推理流水线集成测试
+# test_pipeline.py — 端到端推理流水线集成测试
 # 测试 摄像头→推理→Modbus→OPC UA 完整链路
 
 import pytest

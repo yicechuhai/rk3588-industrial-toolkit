@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 #===============================================================================
 # RK3588 Industrial Toolkit - Web 配置面板 (TUI)
 # 使用 whiptail/dialog 引导用户配置推理引擎，生成 engine.yaml

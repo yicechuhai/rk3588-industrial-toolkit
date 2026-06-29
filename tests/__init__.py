@@ -1,1 +1,1 @@
-﻿# RK3588 Industrial Toolkit — Test Suite
+# RK3588 Industrial Toolkit — Test Suite

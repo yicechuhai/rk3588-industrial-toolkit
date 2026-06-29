@@ -1,1 +1,1 @@
-﻿# RK3588 Industrial Toolkit — Integration Tests
+# RK3588 Industrial Toolkit — Integration Tests

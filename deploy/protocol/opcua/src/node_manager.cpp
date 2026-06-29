@@ -1,4 +1,4 @@
-﻿#include "opcua_server.h"
+#include "opcua_server.h"
 
 #include <cstdio>
 #include <cstring>

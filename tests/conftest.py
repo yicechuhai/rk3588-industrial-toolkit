@@ -1,4 +1,4 @@
-﻿# conftest.py — pytest 共享 fixtures
+# conftest.py — pytest 共享 fixtures
 # RK3588 Industrial Toolkit Test Suite
 
 import pytest

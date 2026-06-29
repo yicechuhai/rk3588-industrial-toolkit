@@ -1,4 +1,4 @@
-﻿# test_opcua.py — OPC UA 节点读写测试
+# test_opcua.py — OPC UA 节点读写测试
 # 测试 deploy/protocol/opcua/ 下的 OpcuaServer 信息模型
 
 import pytest

@@ -1,1 +1,1 @@
-﻿# RK3588 Industrial Toolkit — Unit Tests
+# RK3588 Industrial Toolkit — Unit Tests
