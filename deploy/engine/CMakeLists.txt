@@ -190,6 +190,7 @@ if(BUILD_PYTHON)
 
     set_target_properties(rknn_engine_python PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python"
+        OUTPUT_NAME "rknn_engine"
     )
 
     install(TARGETS rknn_engine_python
