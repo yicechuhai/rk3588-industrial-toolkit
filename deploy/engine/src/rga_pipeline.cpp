@@ -519,7 +519,7 @@ bool RgaPipeline::AllocOutputDmaBuf() {
     heap_data.heap_flags = 0;
     int ret = ioctl(heap_fd, DMA_HEAP_IOCTL_ALLOC, &heap_data);
     close(heap_fd);
-    if (ret == 0 && heap_data.fd >= 0) {
+    if (ret == 0) {  // heap_data.fd is unsigned (dma_heap_allocation_data.fd is __u32)
       void* mapped = mmap(nullptr, dst_size, PROT_READ | PROT_WRITE,
                           MAP_SHARED, heap_data.fd, 0);
       if (mapped != MAP_FAILED) {
