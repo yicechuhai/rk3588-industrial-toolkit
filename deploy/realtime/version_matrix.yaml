@@ -1,0 +1,64 @@
+﻿#===============================================================================
+# RK3588 Industrial Toolkit - Kernel ↔ RT 补丁版本对应表
+# 维护方式：当新的 BSP 内核版本发布时，在此补充对应 RT 补丁条目
+#===============================================================================
+
+# 元数据
+metadata:
+  description: "RK3588 BSP 内核版本与 PREEMPT_RT 补丁对应关系"
+  last_updated: "2026-06-29"
+  maintainer: "RK3588 Industrial Toolkit Team"
+
+# 内核版本矩阵
+kernel_versions:
+  # ---- 5.10.x 系列 (Rockchip BSP 主力版本) ----
+  - bsp_version: "5.10.110"
+    rt_patch: "patch-5.10.110-rt65.patch"
+    rt_version: "rt65"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.110.tar.xz"
+    notes: "RK3588 早期 BSP 版本，部分厂商出厂固件使用"
+
+  - bsp_version: "5.10.160"
+    rt_patch: "patch-5.10.160-rt78.patch"
+    rt_version: "rt78"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.160.tar.xz"
+    notes: "RK3588 中期 BSP 版本，使用较广"
+
+  - bsp_version: "5.10.198"
+    rt_patch: "patch-5.10.198-rt89.patch"
+    rt_version: "rt89"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.198.tar.xz"
+    notes: "RK3588 较新 BSP 版本"
+
+  - bsp_version: "5.10.209"
+    rt_patch: "patch-5.10.209-rt96.patch"
+    rt_version: "rt96"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.10.209.tar.xz"
+    notes: "RK3588 最新 5.10 BSP 版本"
+
+  # ---- 6.1.x 系列 (新一代 BSP) ----
+  - bsp_version: "6.1.43"
+    rt_patch: "patch-6.1.43-rt14.patch"
+    rt_version: "rt14"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.1.43.tar.xz"
+    notes: "RK3588 6.1 BSP 早期版本"
+
+  - bsp_version: "6.1.75"
+    rt_patch: "patch-6.1.75-rt26.patch"
+    rt_version: "rt26"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.1.75.tar.xz"
+    notes: "RK3588 6.1 BSP 较新版本"
+
+  - bsp_version: "6.1.84"
+    rt_patch: "patch-6.1.84-rt28.patch"
+    rt_version: "rt28"
+    kernel_source: "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.1.84.tar.xz"
+    notes: "RK3588 6.1 BSP 最新版本"
+
+# RT 补丁下载基址
+patch_base_url: "https://cdn.kernel.org/pub/linux/kernel/projects/rt"
+
+# 说明：
+# 1. RT 补丁完整 URL = ${patch_base_url}/${major}.x/${rt_patch}
+#    例如: https://cdn.kernel.org/pub/linux/kernel/projects/rt/5.10/patch-5.10.110-rt65.patch.xz
+# 2. 部分 RT 补丁为 .xz 压缩格式，脚本会自动处理解压

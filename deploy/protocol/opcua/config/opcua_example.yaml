@@ -1,0 +1,68 @@
+﻿# ============================================================================
+# OPC UA 服务端示例配置
+# 基于 open62541，将 NPU 推理结果和系统状态暴露为 OPC UA 节点
+# ============================================================================
+
+version: "1.0"
+
+opcua:
+  server:
+    # 服务器端点
+    port: 4840
+    endpoint: "opc.tcp://0.0.0.0:4840"
+    name: "RK3588_AI_Vision_Server"
+    application_uri: "urn:rk3588:industrial:vision"
+
+    # 安全策略（基础版 None，后续扩展 Basic256Sha256）
+    security_policy: "None"
+    security_mode: "None"
+
+    # 认证配置
+    auth:
+      enabled: false
+      # username: "admin"
+      # password: "rk3588"
+
+    # 匿名登录
+    anonymous_login: true
+
+  # 命名空间
+  namespace: "http://rk3588-toolkit/opcua"
+
+  # 节点树结构
+  nodes:
+    system_status:
+      path: "/Objects/RK3588_Industrial/SystemStatus"
+      variables:
+        - { name: "CPU_Usage",        type: "Float",  value: 0.0 }
+        - { name: "Memory_Usage",     type: "Float",  value: 0.0 }
+        - { name: "NPU_Temperature",  type: "Float",  value: 0.0 }
+        - { name: "Inference_FPS",    type: "Float",  value: 0.0 }
+
+    inference_results:
+      path: "/Objects/RK3588_Industrial/InferenceResults"
+      variables:
+        - { name: "DetectionCount",   type: "UInt32", value: 0 }
+
+      # 检测结果数组（最多 20 个槽位）
+      detections:
+        max_count: 20
+        fields:
+          - { name: "ClassID",    type: "UInt16" }
+          - { name: "Confidence", type: "Float"  }
+          - { name: "BBox_X",     type: "Float"  }
+          - { name: "BBox_Y",     type: "Float"  }
+          - { name: "BBox_W",     type: "Float"  }
+          - { name: "BBox_H",     type: "Float"  }
+
+    configuration:
+      path: "/Objects/RK3588_Industrial/Configuration"
+      variables:
+        - { name: "ModelName",        type: "String", value: "yolov5s"  }
+        - { name: "InputResolution",  type: "String", value: "640x640"  }
+
+  # 订阅配置
+  subscription:
+    publishing_interval_ms: 100
+    max_keep_alive_count: 10
+    lifetime_count: 30
