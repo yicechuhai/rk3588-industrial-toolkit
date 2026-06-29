@@ -1,45 +1,45 @@
 ﻿# ============================================================================
-# Modbus TCP 地址映射模板
-# 将 AI 推理结果（检测框坐标、类别、置信度）映射到 PLC 保持寄存器
+# Modbus TCP 示例配置 — deploy/protocol/modbus 专用
+# ============================================================================
+# 将 NPU 推理结果映射到 Modbus 保持寄存器
+# 支持两种地址格式: 0x0000 (原始) 和 40001 (PLC 偏移)
 # ============================================================================
 
 version: "1.0"
 
-# Modbus TCP 服务端配置
 modbus:
   server:
     bind: "0.0.0.0"
     port: 502
     unit_id: 1
 
-# 映射规则：每个检测区域映射到连续的保持寄存器
 mapping:
-  # 寄存器基地址分配
   registers:
-    heartbeat:       40001   # UINT16 心跳计数
-    status:          40002   # UINT16 0=空闲 1=运行 2=错误
-    frame_counter:   40003   # UINT16 帧计数
-    detection_count: 40004   # UINT16 当前帧检测到的目标数
-    
-    # 目标 0 数据 (40005-40014)
-    obj_0:
-      base: 40005
-      layout:
-        - { offset: 0, name: class_id,  type: uint16, desc: "类别ID (0=人 1=车 ...)" }
-        - { offset: 1, name: confidence, type: uint16, desc: "置信度 (0-1000, 除以10得百分比)" }
-        - { offset: 2, name: x1,        type: uint16, desc: "边界框左上角X (像素)" }
-        - { offset: 3, name: y1,        type: uint16, desc: "边界框左上角Y (像素)" }
-        - { offset: 4, name: x2,        type: uint16, desc: "边界框右下角X (像素)" }
-        - { offset: 5, name: y2,        type: uint16, desc: "边界框右下角Y (像素)" }
-        - { offset: 6, name: center_x,  type: uint16, desc: "中心点X (像素)" }
-        - { offset: 7, name: center_y,  type: uint16, desc: "中心点Y (像素)" }
-        - { offset: 8, name: area,      type: uint16, desc: "边界框面积 (千像素)" }
-        - { offset: 9, name: reserved,  type: uint16, desc: "保留" }
+    # --- 系统状态 (0x0000-0x000F) ---
+    heartbeat:       0x0000
+    status:          0x0001
+    frame_counter:   0x0002
+    fps:             0x0003
+    temperature:     0x0004
 
-    # 目标 1-9 各占 10 个寄存器 (40015-40104)
-    # 目标 N 基地址 = 40005 + N * 10
-  
-  # 类别名称映射
+    # --- 检测汇总 (0x0010-0x002F) ---
+    detection_count: 0x0010
+    top1_class_id:   0x0011
+    top1_confidence: 0x0012
+    top1_center_x:   0x0013
+    top1_center_y:   0x0014
+
+    # --- 多目标 (0x0030-0x00FF, 每目标 6 个寄存器, 最多 20 个) ---
+    obj_0:
+      base: 0x0030
+      layout:
+        - { offset: 0, name: class_id,  type: uint16, desc: "类别ID" }
+        - { offset: 1, name: confidence, type: uint16, desc: "置信度x1000" }
+        - { offset: 2, name: x1,        type: uint16, desc: "左上角X" }
+        - { offset: 3, name: y1,        type: uint16, desc: "左上角Y" }
+        - { offset: 4, name: x2,        type: uint16, desc: "右下角X" }
+        - { offset: 5, name: y2,        type: uint16, desc: "右下角Y" }
+
   classes:
     0: "person"
     1: "car"
@@ -48,10 +48,8 @@ mapping:
     4: "pallet"
     5: "conveyor_belt"
 
-# 高级配置
 advanced:
-  max_objects: 10          # 每帧最多输出 10 个目标
-  confidence_threshold: 0.3 # 置信度阈值
-  frame_interval_ms: 50    # 推理间隔（毫秒）
-  watchdog_timeout_ms: 5000 # 看门狗超时
-
+  max_objects: 20
+  confidence_threshold: 0.3
+  frame_interval_ms: 50
+  watchdog_timeout_ms: 5000
