@@ -223,8 +223,9 @@ std::vector<Detection> Postprocessor::ParseYoloV8(const float* const* outputs,
 
         // DFL 解码边界框 (简化: 使用 softmax 加权)
         // 实际实现中需要完整的 Distribution Focal Loss 解码
-        float cx = (gx + 0.5f) * stride / cfg.input_width;
-        float cy = (gy + 0.5f) * stride / cfg.input_height;
+        // cx,cy unused in current YOLOv8 pipeline
+        (void)(gx + 0.5f) * stride / cfg.input_width;
+        (void)(gy + 0.5f) * stride / cfg.input_height;
 
         // 简化: 取 reg_max 通道的加权平均作为偏移
         float offset_l = 0.0f, offset_t = 0.0f, offset_r = 0.0f, offset_b = 0.0f;
