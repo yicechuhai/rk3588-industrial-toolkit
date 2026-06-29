@@ -1,0 +1,4 @@
+Script started on 2026-06-29 13:53:35+08:00 [<not executed on terminal>]
+TERM environment variable not set.
+
+Script done on 2026-06-29 13:53:35+08:00 [COMMAND_EXIT_CODE="1"]

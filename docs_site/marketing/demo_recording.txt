@@ -1,0 +1,65 @@
+Script started on 2026-06-29 13:53:36+08:00 [<not executed on terminal>]
+=== RK3588 Industrial Toolkit ===
+=== Test Suite: 45 tests ===
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.10.12, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /tmp/rk3588-industrial-toolkit/tests
+configfile: pytest.ini
+[1mcollecting ... [0m[1mcollected 45 items                                                             [0m
+
+integration/test_pipeline.py::TestInferencePipeline::test_pipeline_latency_budget [32mPASSED[0m[33m [  2%][0m
+integration/test_pipeline.py::TestInferencePipeline::test_npu_core_distribution [32mPASSED[0m[33m [  4%][0m
+integration/test_pipeline.py::TestDataConsistency::test_modbus_opcua_data_match [32mPASSED[0m[33m [  6%][0m
+integration/test_pipeline.py::TestSystemStability::test_sustained_inference [32mPASSED[0m[33m [  8%][0m
+integration/test_pipeline.py::TestSystemStability::test_recovery_after_npu_reset [32mPASSED[0m[33m [ 11%][0m
+integration/test_pipeline.py::TestMultiServiceRun::test_triple_service_concurrency [32mPASSED[0m[33m [ 13%][0m
+integration/test_pipeline.py::TestMultiServiceRun::test_cpu_usage_under_load [32mPASSED[0m[33m [ 15%][0m
+unit/test_engine.py::TestEngineApi::test_engine_constructor [32mPASSED[0m[33m       [ 17%][0m
+unit/test_engine.py::TestEngineApi::test_engine_methods_exist [32mPASSED[0m[33m     [ 20%][0m
+unit/test_engine.py::TestModelLoader::test_rknn_model_extension [32mPASSED[0m[33m   [ 22%][0m
+unit/test_engine.py::TestPreprocessor::test_input_size_format [32mPASSED[0m[33m     [ 24%][0m
+unit/test_engine.py::TestPreprocessor::test_normalization_params [32mPASSED[0m[33m  [ 26%][0m
+unit/test_engine.py::TestPreprocessor::test_letterbox_enabled [32mPASSED[0m[33m     [ 28%][0m
+unit/test_engine.py::TestPostprocessor::test_nms_threshold_range [32mPASSED[0m[33m  [ 31%][0m
+unit/test_engine.py::TestPostprocessor::test_confidence_threshold_range [32mPASSED[0m[33m [ 33%][0m
+unit/test_engine.py::TestInferenceStats::test_stats_structure [32mPASSED[0m[33m     [ 35%][0m
+unit/test_engine.py::TestInferenceStats::test_fps_positive [32mPASSED[0m[33m        [ 37%][0m
+unit/test_engine.py::TestInferenceStats::test_latency_less_than_frame_interval [32mPASSED[0m[33m [ 40%][0m
+unit/test_engine.py::TestNpuConfiguration::test_core_mask_3_cores [32mPASSED[0m[33m [ 42%][0m
+unit/test_engine.py::TestNpuConfiguration::test_core_mask_1_core [32mPASSED[0m[33m  [ 44%][0m
+unit/test_engine.py::TestPythonBindings::test_numpy_array_interface [32mPASSED[0m[33m [ 46%][0m
+unit/test_engine.py::TestPythonBindings::test_detection_to_dict [32mPASSED[0m[33m   [ 48%][0m
+unit/test_modbus.py::TestModbusAddressParsing::test_hex_address_format [32mPASSED[0m[33m [ 51%][0m
+unit/test_modbus.py::TestModbusAddressParsing::test_plc_address_format [32mPASSED[0m[33m [ 53%][0m
+unit/test_modbus.py::TestModbusAddressParsing::test_invalid_plc_range [32mPASSED[0m[33m [ 55%][0m
+unit/test_modbus.py::TestRegisterMapping::test_system_status_registers [32mPASSED[0m[33m [ 57%][0m
+unit/test_modbus.py::TestRegisterMapping::test_detection_count_register [32mPASSED[0m[33m [ 60%][0m
+unit/test_modbus.py::TestRegisterMapping::test_detection_slot_capacity [32mPASSED[0m[33m [ 62%][0m
+unit/test_modbus.py::TestDetectionToRegisterConversion::test_bbox_to_registers [32mPASSED[0m[33m [ 64%][0m
+unit/test_modbus.py::TestDetectionToRegisterConversion::test_class_id_range [32mPASSED[0m[33m [ 66%][0m
+unit/test_modbus.py::TestDetectionToRegisterConversion::test_confidence_range [32mPASSED[0m[33m [ 68%][0m
+unit/test_modbus.py::TestMultiClientConcurrency::test_connection_pool [32mPASSED[0m[33m [ 71%][0m
+unit/test_modbus.py::TestMultiClientConcurrency::test_concurrent_register_access [32mPASSED[0m[33m [ 73%][0m
+unit/test_opcua.py::TestOpcuaNodeModel::test_root_structure [32mPASSED[0m[33m       [ 75%][0m
+unit/test_opcua.py::TestOpcuaNodeModel::test_system_status_children [32mPASSED[0m[33m [ 77%][0m
+unit/test_opcua.py::TestOpcuaNodeModel::test_detection_slots_count [32mPASSED[0m[33m [ 80%][0m
+unit/test_opcua.py::TestDetectionSlotFields::test_field_count [32mPASSED[0m[33m     [ 82%][0m
+unit/test_opcua.py::TestDetectionSlotFields::test_required_fields_exist [32mPASSED[0m[33m [ 84%][0m
+unit/test_opcua.py::TestValueTypeValidation::test_cpu_usage_type [32mPASSED[0m[33m  [ 86%][0m
+unit/test_opcua.py::TestValueTypeValidation::test_detection_count_type [32mPASSED[0m[33m [ 88%][0m
+unit/test_opcua.py::TestValueTypeValidation::test_temperature_range [32mPASSED[0m[33m [ 91%][0m
+unit/test_opcua.py::TestAuthConfiguration::test_anonymous_access [32mPASSED[0m[33m  [ 93%][0m
+unit/test_opcua.py::TestAuthConfiguration::test_username_password_auth [32mPASSED[0m[33m [ 95%][0m
+unit/test_opcua.py::TestServerEndpoint::test_default_port [32mPASSED[0m[33m         [ 97%][0m
+unit/test_opcua.py::TestServerEndpoint::test_endpoint_url [32mPASSED[0m[33m         [100%][0m
+
+[33m=============================== warnings summary ===============================[0m
+../../../home/cat/.local/lib/python3.10/site-packages/_pytest/config/__init__.py:1624
+  /home/cat/.local/lib/python3.10/site-packages/_pytest/config/__init__.py:1624: PytestConfigWarning: No files were found in testpaths; consider removing or adjusting your testpaths configuration. Searching recursively from the current directory instead.
+    self.args, self.args_source = self._decide_args(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+[33m======================== [32m45 passed[0m, [33m[1m1 warning[0m[33m in 0.16s[0m[33m =========================[0m
+
+Script done on 2026-06-29 13:53:36+08:00 [COMMAND_EXIT_CODE="0"]
