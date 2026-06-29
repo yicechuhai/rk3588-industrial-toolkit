@@ -66,6 +66,8 @@ find_library(RGA_LIB rga
 message(STATUS "Found librga: ${RGA_LIB}")
 
 # RGA 头文件路径 (librga 2.0 im2d API)
+set(ENGINE_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
+set(ENGINE_INCLUDE_DIRS ${ENGINE_INCLUDE_DIR})
 find_path(RGA_INCLUDE_DIR
     NAMES im2d.hpp
     PATHS
@@ -91,8 +93,6 @@ find_package(yaml-cpp REQUIRED)
 message(STATUS "Found yaml-cpp: ${YAML_CPP_INCLUDE_DIR}")
 
 # ── 头文件路径 ──
-set(ENGINE_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
-set(ENGINE_INCLUDE_DIRS ${ENGINE_INCLUDE_DIR})
 
 # ── 源文件 ──
 set(ENGINE_SOURCES
