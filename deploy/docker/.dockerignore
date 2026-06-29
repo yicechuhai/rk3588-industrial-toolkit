@@ -1,0 +1,59 @@
+﻿# Git
+.git
+.gitignore
+.gitattributes
+.github
+
+# 文档站点 (非运行时)
+docs_site
+
+# 补丁包 (在宿主机上操作)
+patches
+
+# 诊断/基准工具 (可选, 宿主机使用)
+tools
+
+# 部署脚本 (宿主机使用)
+deploy_scripts
+
+# 营销材料
+AUTOMATION_CONFIG.md
+CURSOR_START_PROMPT.md
+DAILY_PLAN.md
+HARDWARE_REFERENCE.md
+PROJECT_PLAN.md
+CONTRIBUTING.md
+
+# 构建产物
+build/
+*.o
+*.obj
+*.so
+*.a
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Python
+__pycache__
+*.pyc
+.venv
+
+# 模型文件 (通过 volume 挂载)
+*.rknn
+*.onnx
+
+# 日志
+*.log
+logs/
+
+# 文档 (非运行时)
+deploy/docs
+*.md
+
+# 临时文件
+tmp/
+temp/

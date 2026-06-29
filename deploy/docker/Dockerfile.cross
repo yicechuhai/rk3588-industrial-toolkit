@@ -1,0 +1,190 @@
+﻿#===============================================================================
+# RK3588 Industrial Toolkit — Dockerfile.cross (x86_64 交叉编译 → ARM64)
+#
+# 构建方式:
+#   docker build -t rk3588-toolkit:cross \
+#     --build-arg RKNN_RUNTIME_DEB=./rknn-toolkit-lite2_2.1.0-1_arm64.deb \
+#     -f deploy/docker/Dockerfile.cross .
+#
+# 说明: 在 x86_64 开发机上交叉编译 ARM64 目标二进制，无需 ARM64 硬件。
+#===============================================================================
+
+FROM --platform=linux/amd64 ubuntu:22.04
+
+LABEL org.opencontainers.image.title="RK3588 Industrial Toolkit (cross-compile)"
+LABEL org.opencontainers.image.description="x86_64 → ARM64 交叉编译: AI推理引擎 + Modbus/OPC UA"
+LABEL org.opencontainers.image.authors="yicechuhai"
+LABEL org.opencontainers.image.version="1.0.0"
+
+#===============================================================================
+# 构建参数
+#===============================================================================
+ARG RKNN_RUNTIME_DEB
+ARG DEBIAN_FRONTEND=noninteractive
+
+#===============================================================================
+# 安装交叉编译工具链
+#===============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    pkg-config \
+    git \
+    ca-certificates \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 ARM64 交叉编译工具链
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    binutils-aarch64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
+
+#===============================================================================
+# 安装 ARM64 目标平台依赖 (交叉编译用)
+#===============================================================================
+# 使用多架构 apt 源下载 ARM64 依赖包
+RUN dpkg --add-architecture arm64 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    # RGA (ARM64)
+    librga2:arm64 \
+    librga-dev:arm64 \
+    # DRM (ARM64)
+    libdrm2:arm64 \
+    libdrm-dev:arm64 \
+    # Modbus (ARM64)
+    libmodbus5:arm64 \
+    libmodbus-dev:arm64 \
+    # OPC UA (ARM64)
+    libopen62541-1.1:arm64 \
+    libopen62541-dev:arm64 \
+    # YAML (ARM64)
+    libyaml-cpp0.7:arm64 \
+    libyaml-cpp-dev:arm64 \
+    # Python (ARM64)
+    python3-dev:arm64 \
+    libpython3-dev:arm64 \
+    && rm -rf /var/lib/apt/lists/*
+
+#===============================================================================
+# 安装 RKNN Runtime (ARM64, 仅安装到 sysroot，不执行)
+#===============================================================================
+# RKNN Runtime deb 是 ARM64 架构，仅提取文件作为交叉编译引用
+RUN mkdir -p /opt/rknn-sysroot
+COPY ${RKNN_RUNTIME_DEB} /tmp/rknn-runtime.deb
+RUN dpkg-deb -x /tmp/rknn-runtime.deb /opt/rknn-sysroot/ \
+    && rm -f /tmp/rknn-runtime.deb
+
+#===============================================================================
+# 设置交叉编译工具链文件
+#===============================================================================
+RUN mkdir -p /build/cmake
+COPY cmake/ /build/cmake/ 2>/dev/null || true
+
+# 生成交叉编译 CMake 工具链文件
+RUN echo 'set(CMAKE_SYSTEM_NAME Linux)'                    >  /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_SYSTEM_PROCESSOR aarch64)'           >> /build/toolchain-aarch64.cmake \
+    && echo ''                                              >> /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)'   >> /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)' >> /build/toolchain-aarch64.cmake \
+    && echo ''                                              >> /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)'  >> /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)'   >> /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)'   >> /build/toolchain-aarch64.cmake \
+    && echo 'set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)'   >> /build/toolchain-aarch64.cmake \
+    && echo ''                                              >> /build/toolchain-aarch64.cmake \
+    && echo 'set(RKNN_ROOT /opt/rknn-sysroot)'              >> /build/toolchain-aarch64.cmake \
+    && echo 'set(RK3588_CROSS_COMPILE ON)'                  >> /build/toolchain-aarch64.cmake
+
+#===============================================================================
+# 复制源码
+#===============================================================================
+COPY deploy/engine/ deploy/engine/
+COPY deploy/protocol/ deploy/protocol/
+COPY configs/ configs/
+
+#===============================================================================
+# 交叉编译 — 零拷贝推理引擎
+#===============================================================================
+RUN cmake -B build/engine \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_TOOLCHAIN_FILE=/build/toolchain-aarch64.cmake \
+    -DBUILD_ENGINE=ON \
+    -DBUILD_PYTHON_BINDINGS=OFF \
+    deploy/engine/ \
+    && cmake --build build/engine --target engine -j$(nproc)
+
+#===============================================================================
+# 交叉编译 — Modbus 协议适配器
+#===============================================================================
+RUN cmake -B build/modbus \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_TOOLCHAIN_FILE=/build/toolchain-aarch64.cmake \
+    -DBUILD_MODBUS=ON \
+    deploy/protocol/modbus/ \
+    && cmake --build build/modbus -j$(nproc)
+
+#===============================================================================
+# 交叉编译 — OPC UA 协议适配器
+#===============================================================================
+RUN cmake -B build/opcua \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_TOOLCHAIN_FILE=/build/toolchain-aarch64.cmake \
+    -DBUILD_OPCUA=ON \
+    deploy/protocol/opcua/ \
+    && cmake --build build/opcua -j$(nproc)
+
+#===============================================================================
+# 产出阶段: 将 ARM64 二进制打包到精简镜像
+#===============================================================================
+FROM --platform=linux/arm64 ubuntu:22.04 AS runtime
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# 安装运行时依赖 (ARM64 native)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    librga2 \
+    libdrm2 \
+    libmodbus5 \
+    libopen62541-1.1 \
+    libyaml-cpp0.7 \
+    python3 \
+    python3-numpy \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 从构建阶段复制 RKNN Runtime
+COPY --from=0 /opt/rknn-sysroot/usr/lib/ /usr/lib/
+RUN ldconfig
+
+ENV INSTALL_DIR=/opt/rk3588-toolkit
+
+RUN mkdir -p ${INSTALL_DIR}/lib \
+    && mkdir -p ${INSTALL_DIR}/bin \
+    && mkdir -p ${INSTALL_DIR}/configs \
+    && mkdir -p ${INSTALL_DIR}/models \
+    && mkdir -p ${INSTALL_DIR}/logs
+
+# 复制交叉编译产物
+COPY --from=0 /build/build/engine/libengine.so ${INSTALL_DIR}/lib/
+COPY --from=0 /build/build/modbus/modbus_server ${INSTALL_DIR}/bin/
+COPY --from=0 /build/build/opcua/opcua_server ${INSTALL_DIR}/bin/
+
+# 复制配置和入口脚本
+COPY configs/yaml_templates/ ${INSTALL_DIR}/configs/
+COPY deploy/docker/entrypoint.sh ${INSTALL_DIR}/entrypoint.sh
+RUN chmod +x ${INSTALL_DIR}/entrypoint.sh
+
+ENV LD_LIBRARY_PATH=${INSTALL_DIR}/lib:${LD_LIBRARY_PATH}
+ENV PATH=${INSTALL_DIR}/bin:${PATH}
+
+WORKDIR ${INSTALL_DIR}
+
+EXPOSE 502 4840 50051
+
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/opt/rk3588-toolkit/entrypoint.sh"]

@@ -2,13 +2,14 @@
 #===============================================================================
 # setup_realtime.sh - RK3588 Realtime Tuning Configuration Tool
 # Function: CPU isolation + IRQ affinity binding + cyclictest latency validation
-# Compatible: NanoPC T6 (Debian 11, PREEMPT_RT kernel)
+# Compatible: NanoPC T6, LubanCat 8, Radxa Rock 5B, Orange Pi 5/5 Plus,
+#             Forlinx OK3588, Rockchip EVB1
 # Dependencies: rt-tests (cyclictest), stress-ng (optional, for stress test)
 #===============================================================================
 
 set -e
 
-VERSION="v1.0.0"
+VERSION="v2.0.0"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,20 +18,55 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 #===============================================================================
-# Global configuration
+# Board topology database
 #===============================================================================
-# Realtime-dedicated cores (RK3588: cores 4-7 are high-performance)
+# Each RK3588 board has the same silicon but may expose CPU cores differently,
+# use different clusters for LITTLE/big, or have thermal constraints.
+#
+# RK3588 CPU layout (all boards):
+#   Cluster 0 (LITTLE): CPU0-3  — Cortex-A55, 1.8 GHz
+#   Cluster 1 (big):    CPU4-7  — Cortex-A76, 2.4 GHz
+#
+# Default: isolate big cores (4-7) for realtime, LITTLE cores (0-3) for IRQ/OS.
+
+# Format: "board_pattern|rt_cpus_range|rt_cpus_list|irq_cpus_range|irq_cpus_list|description"
+BOARD_TOPOLOGIES=(
+    # NanoPC T6 — verified baseline
+    "NanoPC T6|4-7|4,5,6,7|0-3|0,1,2,3|Verified baseline; 8GB LPDDR4x"
+    # LubanCat 8
+    "LubanCat|4-7|4,5,6,7|0-3|0,1,2,3|8GB LPDDR5; big cores for RT"
+    # Radxa Rock 5B
+    "Rock 5B|4-7|4,5,6,7|0-3|0,1,2,3|Standard RK3588 layout"
+    # Orange Pi 5
+    "Orange Pi 5|4-7|4,5,6,7|0-3|0,1,2,3|Standard RK3588 layout"
+    # Forlinx OK3588
+    "OK3588|4-7|4,5,6,7|0-3|0,1,2,3|Forlinx industrial board"
+    # Rockchip EVB1
+    "EVB1|4-7|4,5,6,7|0-3|0,1,2,3|Rockchip official EVB"
+    # Generic RK3588 fallback
+    "RK3588|4-7|4,5,6,7|0-3|0,1,2,3|Generic RK3588 board"
+)
+
+#===============================================================================
+# Global configuration (may be overridden by board detection)
+#===============================================================================
 RT_CPUS="4-7"
 RT_CPUS_LIST="4,5,6,7"
-# Non-realtime cores / IRQ handling cores
 IRQ_CPUS="0-3"
 IRQ_CPUS_LIST="0,1,2,3"
+
+# Board name (detected from device-tree)
+DETECTED_BOARD=""
 
 # cyclictest configuration
 CYCLICTEST_DURATION=300
 CYCLICTEST_PRIORITY=99
 CYCLICTEST_INTERVAL=1000
 CYCLICTEST_HISTOGRAM=50
+
+# Path to version_matrix.csv (resolved relative to the script's location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_MATRIX="${SCRIPT_DIR}/version_matrix.csv"
 
 #===============================================================================
 # Helper functions
@@ -57,6 +93,7 @@ usage() {
     echo "  --cyclictest      Run cyclictest latency test only"
     echo "  --stress          Run stress test (stress-ng + cyclictest)"
     echo "  --restore         Restore default configuration"
+    echo "  --list-boards     List supported board topologies"
     echo "  --help, -h        Show this help"
     echo ""
     echo "Examples:"
@@ -64,9 +101,12 @@ usage() {
     echo "  sudo bash setup_realtime.sh --apply         # Apply tuning"
     echo "  sudo bash setup_realtime.sh --cyclictest    # Run latency test"
     echo "  sudo bash setup_realtime.sh --stress        # Full stress test"
+    echo "  sudo bash setup_realtime.sh --list-boards   # List board topologies"
     echo ""
     echo "Env vars:"
     echo "  CYCLICTEST_DURATION=300    Test duration in seconds"
+    echo "  RK3588_RT_CPUS=4-7         Override realtime CPU range"
+    echo "  RK3588_IRQ_CPUS=0-3        Override IRQ CPU range"
 }
 
 check_root() {
@@ -74,6 +114,102 @@ check_root() {
         log_error "Please run as root: sudo bash $0"
         exit 1
     fi
+}
+
+#===============================================================================
+# Board detection and CPU topology auto-selection
+#===============================================================================
+detect_board_model() {
+    local model_file="/proc/device-tree/model"
+    if [ -f "$model_file" ]; then
+        tr -d '\0' < "$model_file"
+    else
+        echo ""
+    fi
+}
+
+# Match a device-tree model string against BOARD_TOPOLOGIES entries.
+# Sets global RT_CPUS, RT_CPUS_LIST, IRQ_CPUS, IRQ_CPUS_LIST.
+detect_and_apply_board_topology() {
+    echo ""
+    echo -e "${CYAN}--- Board Detection ---${NC}"
+
+    local raw_board=$(detect_board_model)
+    DETECTED_BOARD="$raw_board"
+
+    if [ -n "$raw_board" ]; then
+        log_info "Detected board: ${raw_board}"
+    else
+        log_warn "Could not read device-tree model (not an RK3588 board?)"
+    fi
+
+    # Allow manual override via environment variables
+    if [ -n "$RT_CPUS" ] && [ "$RT_CPUS" != "4-7" ] && [[ ! "$RT_CPUS" =~ ^[0-9,-]+$ ]]; then
+        log_warn "RT_CPUS override invalid, ignoring"
+    fi
+    if [ -n "$RK3588_RT_CPUS" ]; then
+        RT_CPUS="$RK3588_RT_CPUS"
+        RT_CPUS_LIST=$(echo "$RT_CPUS" | sed 's/-/,/g')
+        log_info "RT_CPUS overridden by env: ${RT_CPUS}"
+        return
+    fi
+    if [ -n "$RK3588_IRQ_CPUS" ]; then
+        IRQ_CPUS="$RK3588_IRQ_CPUS"
+        IRQ_CPUS_LIST=$(echo "$IRQ_CPUS" | sed 's/-/,/g')
+        log_info "IRQ_CPUS overridden by env: ${IRQ_CPUS}"
+        return
+    fi
+
+    # Walk BOARD_TOPOLOGIES in order; first match wins
+    local matched=false
+    for entry in "${BOARD_TOPOLOGIES[@]}"; do
+        local pattern="${entry%%|*}"
+        local rest="${entry#*|}"
+        local rt_range="${rest%%|*}"; rest="${rest#*|}"
+        local rt_list="${rest%%|*}"; rest="${rest#*|}"
+        local irq_range="${rest%%|*}"; rest="${rest#*|}"
+        local irq_list="${rest%%|*}"; rest="${rest#*|}"
+        local description="$rest"
+
+        if echo "$raw_board" | grep -qi "$pattern"; then
+            RT_CPUS="$rt_range"
+            RT_CPUS_LIST="$rt_list"
+            IRQ_CPUS="$irq_range"
+            IRQ_CPUS_LIST="$irq_list"
+            log_info "Matched topology: ${pattern} -> RT=${RT_CPUS}, IRQ=${IRQ_CPUS}"
+            matched=true
+            break
+        fi
+    done
+
+    if [ "$matched" = false ]; then
+        log_warn "No specific board topology found, using RK3588 defaults"
+        log_warn "  RT cores: ${RT_CPUS} (big cluster), IRQ cores: ${IRQ_CPUS} (LITTLE cluster)"
+        log_info "Override: export RK3588_RT_CPUS=4-7 RK3588_IRQ_CPUS=0-3"
+    fi
+
+    echo ""
+}
+
+# List all board topologies in a readable table
+list_board_topologies() {
+    echo -e "${CYAN}Supported Board Topologies${NC}"
+    echo ""
+    printf "  %-22s %-10s %-10s %s\n" "Board Pattern" "RT Cores" "IRQ Cores" "Description"
+    printf "  %-22s %-10s %-10s %s\n" "----------------------" "----------" "----------" "-----------"
+    for entry in "${BOARD_TOPOLOGIES[@]}"; do
+        local pattern="${entry%%|*}"
+        local rest="${entry#*|}"
+        local rt_range="${rest%%|*}"; rest="${rest#*|}"
+        local rt_list="${rest%%|*}"; rest="${rest#*|}"
+        local irq_range="${rest%%|*}"; rest="${rest#*|}"
+        local irq_list="${rest%%|*}"; rest="${rest#*|}"
+        local description="$rest"
+        printf "  %-22s %-10s %-10s %s\n" "$pattern" "$rt_range" "$irq_range" "$description"
+    done
+    echo ""
+    echo "  Override via env: export RK3588_RT_CPUS=4-7 RK3588_IRQ_CPUS=0-3"
+    echo ""
 }
 
 #===============================================================================
@@ -183,8 +319,9 @@ check_current_config() {
 
     echo ""
     log_info "Current CPU status:"
-    for cpu in /sys/devices/system/cpu/cpu[0-7]/online; do
-        local cpu_idx=$(echo "$cpu" | grep -oP 'cpu\K[0-7]')
+    local total_cpus=$(grep -c "^processor" /proc/cpuinfo)
+    for cpu_idx in $(seq 0 $((total_cpus - 1))); do
+        local cpu="/sys/devices/system/cpu/cpu${cpu_idx}/online"
         local online=$(cat "$cpu" 2>/dev/null || echo 1)
         if [ "$online" = "1" ]; then
             local gov_val=$(cat "/sys/devices/system/cpu/cpu${cpu_idx}/cpufreq/scaling_governor" 2>/dev/null || echo "N/A")
@@ -203,7 +340,7 @@ apply_realtime_config() {
     echo -e "${CYAN}--- 2. Apply Realtime Tuning Configuration ---${NC}"
 
     log_info "Setting CPU frequency governor to performance..."
-    for cpu in /sys/devices/system/cpu/cpu[0-7]; do
+    for cpu in /sys/devices/system/cpu/cpu[0-9]; do
         if [ -f "$cpu/cpufreq/scaling_governor" ]; then
             echo performance > "$cpu/cpufreq/scaling_governor" 2>/dev/null || true
         fi
@@ -211,7 +348,10 @@ apply_realtime_config() {
     log_info "CPU frequency governor set OK"
 
     log_info "Disabling deep CPU idle states on realtime cores..."
-    for cpu in /sys/devices/system/cpu/cpu[4-7]; do
+    local rt_first=$(echo "$RT_CPUS" | cut -d- -f1)
+    local rt_last=$(echo "$RT_CPUS" | cut -d- -f2)
+    for cpu_idx in $(seq "$rt_first" "$rt_last"); do
+        local cpu="/sys/devices/system/cpu/cpu${cpu_idx}"
         if [ -d "$cpu/cpuidle" ]; then
             for state in "$cpu/cpuidle/state"*; do
                 if [ -f "$state/disable" ]; then
@@ -230,11 +370,12 @@ apply_realtime_config() {
         systemctl disable irqbalance 2>/dev/null || true
     fi
 
+    local total_cpus=$(grep -c "^processor" /proc/cpuinfo)
     local IRQ_AFFINITY_MASK=""
     for cpu in $IRQ_CPUS_LIST; do
         IRQ_AFFINITY_MASK="${IRQ_AFFINITY_MASK}1"
     done
-    while [ ${#IRQ_AFFINITY_MASK} -lt 8 ]; do
+    while [ ${#IRQ_AFFINITY_MASK} -lt "$total_cpus" ]; do
         IRQ_AFFINITY_MASK="0${IRQ_AFFINITY_MASK}"
     done
     IRQ_AFFINITY_MASK=$(printf "%x" $((2#${IRQ_AFFINITY_MASK})))
@@ -367,7 +508,7 @@ run_stress_test() {
     echo "  stress-ng: CPU load + memory pressure + I/O load"
     echo ""
 
-    log_info "Starting stress-ng on non-realtime cores (CPU 0-3)..."
+    log_info "Starting stress-ng on non-realtime cores (CPU ${IRQ_CPUS})..."
 
     killall stress-ng 2>/dev/null || true
     sleep 1
@@ -453,14 +594,17 @@ restore_defaults() {
     log_info "This will restore default system configuration..."
 
     log_info "Restoring CPU frequency governor..."
-    for cpu in /sys/devices/system/cpu/cpu[0-7]; do
+    for cpu in /sys/devices/system/cpu/cpu[0-9]; do
         if [ -f "$cpu/cpufreq/scaling_governor" ]; then
             echo schedutil > "$cpu/cpufreq/scaling_governor" 2>/dev/null || true
         fi
     done
 
     log_info "Restoring CPU idle states..."
-    for cpu in /sys/devices/system/cpu/cpu[4-7]; do
+    local rt_first=$(echo "$RT_CPUS" | cut -d- -f1)
+    local rt_last=$(echo "$RT_CPUS" | cut -d- -f2)
+    for cpu_idx in $(seq "$rt_first" "$rt_last"); do
+        local cpu="/sys/devices/system/cpu/cpu${cpu_idx}"
         if [ -d "$cpu/cpuidle" ]; then
             for state in "$cpu/cpuidle/state"*; do
                 if [ -f "$state/disable" ]; then
@@ -490,6 +634,7 @@ main() {
     local CYCLIC_ONLY=false
     local STRESS_TEST=false
     local RESTORE=false
+    local LIST_BOARDS=false
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -498,6 +643,7 @@ main() {
             --cyclictest)   CYCLIC_ONLY=true; shift ;;
             --stress)       STRESS_TEST=true; shift ;;
             --restore)      RESTORE=true; shift ;;
+            --list-boards)  LIST_BOARDS=true; shift ;;
             --help|-h)      usage; exit 0 ;;
             *)              echo "Unknown option: $1"; usage; exit 1 ;;
         esac
@@ -505,12 +651,23 @@ main() {
 
     # Default (no flags): apply + test
     if [ "$CHECK_ONLY" = false ] && [ "$APPLY" = false ] \
-        && [ "$CYCLIC_ONLY" = false ] && [ "$STRESS_TEST" = false ] && [ "$RESTORE" = false ]; then
+        && [ "$CYCLIC_ONLY" = false ] && [ "$STRESS_TEST" = false ] \
+        && [ "$RESTORE" = false ] && [ "$LIST_BOARDS" = false ]; then
         APPLY=true
     fi
 
     print_banner
     check_root
+
+    # Board detection (always runs to select correct CPU topology)
+    detect_and_apply_board_topology
+
+    # Mode: list boards and exit
+    if [ "$LIST_BOARDS" = true ]; then
+        list_board_topologies
+        exit 0
+    fi
+
     check_prerequisites
 
     check_current_config

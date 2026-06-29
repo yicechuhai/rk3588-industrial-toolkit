@@ -1,0 +1,55 @@
+# ============================================================================
+# Modbus TCP 示例配置 — deploy/protocol/modbus 专用
+# ============================================================================
+# 将 NPU 推理结果映射到 Modbus 保持寄存器
+# 支持两种地址格式: 0x0000 (原始) 和 40001 (PLC 偏移)
+# ============================================================================
+
+version: "1.0"
+
+modbus:
+  server:
+    bind: "0.0.0.0"
+    port: 502
+    unit_id: 1
+
+mapping:
+  registers:
+    # --- 系统状态 (0x0000-0x000F) ---
+    heartbeat:       0x0000
+    status:          0x0001
+    frame_counter:   0x0002
+    fps:             0x0003
+    temperature:     0x0004
+
+    # --- 检测汇总 (0x0010-0x002F) ---
+    detection_count: 0x0010
+    top1_class_id:   0x0011
+    top1_confidence: 0x0012
+    top1_center_x:   0x0013
+    top1_center_y:   0x0014
+
+    # --- 多目标 (0x0030-0x00FF, 每目标 6 个寄存器, 最多 20 个) ---
+    obj_0:
+      base: 0x0030
+      layout:
+        - { offset: 0, name: class_id,  type: uint16, desc: "类别ID" }
+        - { offset: 1, name: confidence, type: uint16, desc: "置信度x1000" }
+        - { offset: 2, name: x1,        type: uint16, desc: "左上角X" }
+        - { offset: 3, name: y1,        type: uint16, desc: "左上角Y" }
+        - { offset: 4, name: x2,        type: uint16, desc: "右下角X" }
+        - { offset: 5, name: y2,        type: uint16, desc: "右下角Y" }
+
+  classes:
+    0: "person"
+    1: "car"
+    2: "forklift"
+    3: "box"
+    4: "pallet"
+    5: "conveyor_belt"
+
+advanced:
+  max_objects: 20
+  confidence_threshold: 0.3
+  frame_interval_ms: 50
+  watchdog_timeout_ms: 5000

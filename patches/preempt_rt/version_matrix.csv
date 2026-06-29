@@ -1,0 +1,31 @@
+# BSP Kernel Version ↔ PREEMPT_RT Patch Compatibility Matrix
+# Maintained by: rk3588-industrial-toolkit team
+# Last updated: 2026-06-29
+#
+# Columns:
+#   board          — RK3588 board model name
+#   bsp_kernel     — BSP kernel version shipped by the board vendor
+#   rt_patch       — matching PREEMPT_RT patch version
+#   rt_patch_url   — full URL to download the RT patch
+#   bsp_source_url — URL for the BSP kernel source / vendor SDK
+#   status         — verified | compatible | planned | deprecated
+#   notes          — additional remarks
+#
+# How to add a new entry:
+#   1. Find your board's BSP kernel version: uname -r
+#   2. Check which RT patch applies: https://cdn.kernel.org/pub/linux/kernel/projects/rt/
+#   3. Add a row below and send a PR
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+board,bsp_kernel,rt_patch,rt_patch_url,bsp_source_url,status,notes
+NanoPC T6,6.1.141,6.1.141-rt52,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.141-rt52.patch.xz,https://github.com/friendlyarm/kernel-rockchip,verified,"Debian 11 shipped kernel; 8GB LPDDR4x"
+LubanCat 8,6.1.75,6.1.75-rt17,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.75-rt17.patch.xz,https://github.com/LubanCat/kernel-rockchip,pending,"8GB LPDDR5; BSP kernel 6.1.75"
+Radxa Rock 5B,6.1.75,6.1.75-rt17,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.75-rt17.patch.xz,https://github.com/radxa/kernel,compatible,"Theoretical compatibility; requires testing"
+Orange Pi 5,5.10.160,5.10.160-rt83,https://cdn.kernel.org/pub/linux/kernel/projects/rt/5.10/older/patch-5.10.160-rt83.patch.xz,https://github.com/orangepi-xunlong/kernel,compatible,"Theoretical compatibility; requires testing"
+Orange Pi 5 Plus,5.10.160,5.10.160-rt83,https://cdn.kernel.org/pub/linux/kernel/projects/rt/5.10/older/patch-5.10.160-rt83.patch.xz,https://github.com/orangepi-xunlong/kernel,compatible,"Theoretical compatibility; requires testing"
+Forlinx OK3588,5.10.198,5.10.198-rt101,https://cdn.kernel.org/pub/linux/kernel/projects/rt/5.10/older/patch-5.10.198-rt101.patch.xz,https://github.com/forlinx/kernel,compatible,"Forlinx BSP kernel 5.10.198"
+Rockchip EVB1,6.1.75,6.1.75-rt17,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.75-rt17.patch.xz,https://github.com/rockchip-linux/kernel,compatible,"Rockchip official BSP; kernel 6.1.75"
+Rockchip EVB1,6.1.141,6.1.141-rt52,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.141-rt52.patch.xz,https://github.com/rockchip-linux/kernel,planned,"Future LTS bump for Rockchip BSP"
+Mekotronics R58X,6.1.75,6.1.75-rt17,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.75-rt17.patch.xz,https://github.com/mekotronics/kernel,compatible,"Theoretical compatibility"
+HININK RK3588,6.1.75,6.1.75-rt17,https://cdn.kernel.org/pub/linux/kernel/projects/rt/6.1/older/patch-6.1.75-rt17.patch.xz,https://github.com/hinink/kernel,compatible,"Theoretical compatibility; requires testing"

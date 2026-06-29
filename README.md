@@ -14,51 +14,63 @@
 
 ---
 
-## 📦 项目结构
+## 📦 Project Structure / 项目结构
 
-```
-rk3588-industrial-toolkit/
-├── deploy_scripts/                  # 一键部署工具 ⭐ 入门从这里开始
-│   ├── env_check/check_env.sh       # 环境检测 → 生成 HTML 报告
-│   ├── demo/run_yolov5_demo.sh      # YOLOv5s 实时检测 Demo
-│   └── offline_pack/                # 离线依赖包
+k3588-industrial-toolkit/
+├── deploy_scripts/                  # ⭐ One-click Deploy
+│   ├── env_check/check_env.sh       # Environment health report (HTML)
+│   ├── demo/run_yolov5_demo.sh      # YOLOv5s real-time detection
+│   ├── oneclick/web_config.sh       # TUI config wizard
+│   └── offline_pack/                # Offline deployment pack
 │
-├── deploy/                          # 产品核心模块
-│   ├── realtime/                    # 实时增强（PREEMPT_RT 补丁）
-│   ├── engine/                      # 零拷贝推理引擎（C++/Python SDK）
-│   ├── protocol/                    # 工业协议适配（Modbus/OPC UA）
-│   ├── docs/                        # 完整文档
-│   │   ├── zh/                      #   中文：开发指南 / 调优指南 / FAQ
-│   │   └── en/                      #   English docs
-│   └── examples/                    # 示例项目
-│       ├── yolov5_demo/             #   YOLO 目标检测
-│       └── modbus_demo/             #   Modbus 通信
+├── deploy/                          # Core Modules
+│   ├── engine/                      # 🔥 Zero-Copy Inference Engine
+│   │   ├── include/ (5 headers)     #   Engine, ModelLoader, Pre/PostProcessor, RGA
+│   │   ├── src/ (6 .cpp files)      #   DMA-BUF + RGA + YOLOv5/v8/X
+│   │   ├── python/                  #   pybind11 (NumPy zero-copy + Context Manager)
+│   │   └── CMakeLists.txt          #   C++17 -> libengine.so
+│   │
+│   ├── protocol/                    # 🔥 Industrial Protocols
+│   │   ├── modbus/                  #   Modbus TCP Server (libmodbus)
+│   │   │   ├── src/                 #   Multi-client, register map, YAML-driven
+│   │   │   └── CMakeLists.txt
+│   │   └── opcua/                   #   OPC UA Server (open62541)
+│   │       ├── src/                 #   20 detection slots, full info model
+│   │       └── CMakeLists.txt
+│   │
+│   ├── realtime/                    # ⚡ Real-time Enhancement
+│   │   ├── build_rt_kernel.sh      #   PREEMPT_RT auto-build (775 lines, 22 funcs)
+│   │   ├── isolate_cpu.sh          #   CPU isolation + IRQ affinity tuning
+│   │   └── version_matrix.yaml     #   7 BSP kernels mapped to RT patches
+│   │
+│   └── docker/                      # 🐳 Docker
+│       ├── Dockerfile + .cross      #   ARM64 target / x86_64 cross-compile
+│       ├── docker-compose.yml       #   inference + modbus + opcua
+│       └── entrypoint.sh
 │
-├── tools/                           # 诊断与基准测试
-│   ├── diagnose/diagnose.sh         # 故障一键诊断
-│   └── benchmark/benchmark.sh       # 性能基准测试
+├── patches/                         # Driver & Kernel Patches
+│   ├── preempt_rt/                  #   RT patch scripts + version matrix
+│   └── npu_driver/                  #   NPU driver check (448L) + upgrade (566L)
 │
-├── patches/                         # 补丁包
-│   ├── preempt_rt/                  # PREEMPT_RT 编译脚本
-│   └── npu_driver/                  # NPU 驱动管理
+├── configs/                         # YAML Config Templates
+│   ├── engine.yaml                  #   Inference engine config
+│   └── yaml_templates/              #   modbus, opcua, global
 │
-├── configs/yaml_templates/          # 配置模板
-│   ├── modbus_mapping.yaml          # Modbus 地址映射
-│   ├── opcua_server.yaml            # OPC UA 服务端配置
-│   └── global_config.yaml           # 全局配置
+├── tests/                           # 🧪 Test Suite — 45 tests, all green
+│   ├── unit/
+│   │   ├── test_engine.py           #   Engine API + NPU + NumPy
+│   │   ├── test_modbus.py           #   Address parsing + concurrency
+│   │   └── test_opcua.py            #   Node model + auth + endpoints
+│   ├── integration/
+│   │   └── test_pipeline.py         #   End-to-end latency + stability
+│   └── conftest.py
 │
-├── docs_site/                       # 营销与推广材料
-│   ├── flagship_article.md          # 立旗文章
-│   ├── landing_page.md              # 产品页
-│   └── sales_playbook.md            # 销售话术与转化流程
-│
-├── install.sh                       # 一键安装脚本
-├── README.md                        # 你现在看的
-└── CONTRIBUTING.md                  # 贡献指南
-```
-
----
-
+├── tools/                           # Diagnostics & Benchmark
+├── docs_site/                       # Marketing materials
+├── install.sh                       # One-click installer (--full/--minimal/--ai-only)
+├── CHANGELOG.md                     # v1.0.0 release notes
+└── README.md
+\
 ## 🚀 5 分钟快速体验
 
 ```bash
