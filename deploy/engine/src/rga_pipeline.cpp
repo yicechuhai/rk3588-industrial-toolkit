@@ -47,6 +47,7 @@
 // DMA-BUF / dma-heap 分配
 #include <linux/dma-heap.h>
 #include <linux/dma-buf.h>
+#include <linux/videodev2.h>
 
 #ifndef VIDIOC_EXPBUF
 struct v4l2_exportbuffer {
@@ -59,11 +60,13 @@ struct v4l2_exportbuffer {
 #define VIDIOC_EXPBUF _IOWR('V', 0x10, struct v4l2_exportbuffer)
 #endif
 
-#include <linux/videodev2.h>
-
 // librga 2.0 im2d API (C++ 封装)
+// RGA im2d headers use GCC extensions (braced-groups, zero-length arrays)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <im2d.hpp>
 #include <rga.h>
+#pragma GCC diagnostic pop
 #include <im2d_type.h>
 
 namespace rk3588 {
