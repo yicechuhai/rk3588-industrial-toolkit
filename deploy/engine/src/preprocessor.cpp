@@ -28,7 +28,7 @@
 #include <rga/RgaApi.h>
 
 // DMA-BUF 分配 (Linux 内核接口)
-#include <linux/dma-buf.h>
+// #include <linux/dma-buf.h>  // not available on all kernels
 
 namespace rk3588 {
 namespace engine {

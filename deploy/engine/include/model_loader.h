@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <rknn/rknn_api.h>
 #include <string>
+#include <memory>
 #include <vector>
 
 // RKNN API 前向声明
