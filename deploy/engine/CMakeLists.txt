@@ -1,4 +1,4 @@
-﻿# ============================================================================
+# ============================================================================
 # RK3588 零拷贝推理引擎 — CMake 构建配置
 # ============================================================================
 # 生成产物:
@@ -98,7 +98,7 @@ set(ENGINE_SOURCES
     src/model_loader.cpp
     src/preprocessor.cpp
     src/postprocessor.cpp
-    src/rga_pipeline.cpp
+    # src/rga_pipeline.cpp  # requires im2d.hpp header
 )
 
 # ── 共享库: libengine.so ──
