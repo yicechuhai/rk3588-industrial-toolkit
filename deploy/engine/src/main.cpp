@@ -15,7 +15,9 @@
 #include <vector>
 
 #include "engine.h"
+#ifdef HAS_RGA
 #include "rga_pipeline.h"
+#endif
 
 struct CliArgs {
   std::string config_path = "config/engine.yaml";
@@ -123,6 +125,7 @@ std::vector<uint8_t> LoadImage(const std::string& path, int& width, int& height)
   return data;
 }
 
+#ifdef HAS_RGA
 void RunRgaPipeline(const CliArgs& args) {
   std::cout << "模式: RGA 硬件加速流水线\n";
   std::cout << "设备: " << args.camera_device << "\n";
@@ -182,6 +185,7 @@ void RunRgaPipeline(const CliArgs& args) {
   PrintStats(engine.GetStats());
 }
 
+#endif  // HAS_RGA
 int main(int argc, char* argv[]) {
   auto args = ParseArgs(argc, argv);
   if (args.show_help || args.model_path.empty()) {
@@ -197,6 +201,7 @@ int main(int argc, char* argv[]) {
     std::cout << "模型: " << args.model_path << "\n";
   }
 
+#ifdef HAS_RGA
   if (args.use_rga_pipeline) {
     if (args.camera_device.empty()) {
       std::cerr << "错误: --rga-pipeline 需要 --camera 参数\n";
@@ -205,6 +210,7 @@ int main(int argc, char* argv[]) {
     RunRgaPipeline(args);
     return 0;
   }
+#endif  // HAS_RGA
 
   rk3588::engine::Engine engine(args.config_path);
   if (!engine.LoadModel(args.model_path)) {

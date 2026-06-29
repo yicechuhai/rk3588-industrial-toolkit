@@ -100,7 +100,7 @@ set(ENGINE_SOURCES
     src/model_loader.cpp
     src/preprocessor.cpp
     src/postprocessor.cpp
-    src/rga_pipeline.cpp
+    # src/rga_pipeline.cpp  # requires im2d.hpp (struct redef / zero-size array compat)
 )
 
 # ── 共享库: libengine.so ──
