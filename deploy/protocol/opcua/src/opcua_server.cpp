@@ -1,7 +1,7 @@
 #include "opcua_server.h"
 
 #include <open62541.h>
-#include // open62541.h includes default config
+// open62541.h includes default config
 
 #include <chrono>
 #include <cstring>
@@ -54,13 +54,16 @@ OpcuaServer::~OpcuaServer() {
   Stop();
   if (config_ != nullptr) {
     UA_ServerConfig_clean(config_);
-    UA_ServerConfig_delete(config_);
+    delete config_;
     config_ = nullptr;
   }
 }
 
 void OpcuaServer::SetupServerConfig() {
-  config_ = UA_ServerConfig_new_minimal(port_, nullptr);
+  // open62541 v1.3: allocate config, then initialize
+  config_ = new UA_ServerConfig();
+  memset(config_, 0, sizeof(UA_ServerConfig));
+  UA_ServerConfig_setMinimal(config_, port_, nullptr);
 
   config_->applicationDescription.applicationName =
       UA_LOCALIZEDTEXT(const_cast<char*>("en-US"),
@@ -69,27 +72,26 @@ void OpcuaServer::SetupServerConfig() {
       UA_STRING_ALLOC(application_uri_.c_str());
 
   // 安全策略：None（基础版）
-  config_->securityMode = UA_MESSAGESECURITYMODE_NONE;
+  config_->securityPolicies->policyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
   // 用户名密码认证
   if (!auth_username_.empty() && !auth_password_.empty()) {
-    config_->accessControl.clear(&config_->accessControl);
-
     UA_UsernamePasswordLogin login;
-    UA_UsernamePasswordLogin_init(&login);
+    memset(&login, 0, sizeof(login));
     login.username = UA_STRING_ALLOC(auth_username_.c_str());
     login.password = UA_STRING_ALLOC(auth_password_.c_str());
 
+    UA_CertificateVerification cv;
+    UA_CertificateVerification_AcceptAll(&cv);
+
     UA_AccessControl_default(
-        config_, true,
-        &config_->applicationDescription.applicationUri,
-        &config_->securityPolicies[0].policyUri,
-        1, &login);
+        config_, false, &cv,
+        nullptr, 1, &login);
 
     UA_String_clear(&login.username);
     UA_String_clear(&login.password);
   } else {
-    UA_AccessControl_default(config_, false, nullptr, nullptr, 0, nullptr);
+    UA_AccessControl_default(config_, true, nullptr, nullptr, 0, nullptr);
   }
 }
 
