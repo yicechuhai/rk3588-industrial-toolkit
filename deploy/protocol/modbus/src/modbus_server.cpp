@@ -171,7 +171,7 @@ void ModbusServer::ClientHandler(int client_fd) {
   // 注入已 accept 的 socket
   if (modbus_set_socket(ctx, client_fd) < 0) {
     // modbus_set_socket 可能不存在于旧版本，回退到直接赋值
-    ctx->s = client_fd;
+    // ctx->s = client_fd; // modbus_t is opaque in libmodbus v3.1
   }
 
   // 设置超时

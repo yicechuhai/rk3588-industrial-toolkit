@@ -48,6 +48,7 @@ struct Engine::Impl {
 
   // IO buffers (standard RKNN v1 API)
   struct IOBuffer {
+    IOBuffer() : data(nullptr), size(0) {}
     void* data = nullptr;
     uint32_t size = 0;
   };
@@ -211,7 +212,7 @@ bool Engine::AllocateDmaBufTensors() {
 
   // Allocate input buffers (standard malloc, no DMA-BUF in RKNN v2.3.2)
   for (const auto& input : io_info.inputs) {
-    IOBuffer buf;
+    Impl::IOBuffer buf;
     buf.size = input.size;
     buf.data = std::aligned_alloc(64, input.size);
     if (!buf.data) {
@@ -224,7 +225,7 @@ bool Engine::AllocateDmaBufTensors() {
 
   // Allocate output buffers
   for (const auto& output : io_info.outputs) {
-    IOBuffer buf;
+    Impl::IOBuffer buf;
     buf.size = output.size;
     buf.data = std::aligned_alloc(64, output.size);
     if (!buf.data) {
