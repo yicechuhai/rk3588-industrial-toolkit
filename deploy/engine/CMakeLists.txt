@@ -82,8 +82,8 @@ find_path(RGA_INCLUDE_DIR
 if(RGA_INCLUDE_DIR)
     message(STATUS "Found RGA headers: ${RGA_INCLUDE_DIR}")
     list(APPEND ENGINE_INCLUDE_DIRS ${RGA_INCLUDE_DIR})
-    set(HAS_RGA TRUE)
-    add_compile_definitions(HAS_RGA)
+    # set(HAS_RGA TRUE)  # uncomment when rga_pipeline.cpp compiles
+    # add_compile_definitions(HAS_RGA)
 else()
     message(WARNING "RGA headers (im2d.hpp) not found - rga_pipeline may not compile")
 endif()
