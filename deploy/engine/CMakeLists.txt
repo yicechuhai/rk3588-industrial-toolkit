@@ -114,7 +114,7 @@ target_link_libraries(engine
     PUBLIC
         ${RKNNRT_LIB}
         ${RGA_LIB}
-        yaml-cpp::yaml-cpp
+        yaml-cpp
 )
 
 # 设置 soname
