@@ -115,6 +115,7 @@ class ModelLoader {
   void Release();
 
  private:
+  static void QueryIOInfo(rknn_context ctx, ModelIOInfo& io_info);
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

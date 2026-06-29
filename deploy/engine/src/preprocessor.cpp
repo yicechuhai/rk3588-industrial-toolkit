@@ -29,7 +29,7 @@
 
 // DMA-BUF 分配 (Linux 内核接口)
 #ifdef HAS_DMA_HEAP
-#include <linux/dma-buf.h>
+// <linux/dma-buf.h> not available on all kernels
 #endif
 
 namespace rk3588 {
@@ -272,63 +272,17 @@ bool Preprocessor::CpuPreprocess(const uint8_t* src, int src_w, int src_h,
 // ============================================================================
 
 bool Preprocessor::AllocateDmaBuf(PreprocessedTensor& tensor, uint32_t size) {
-  // 尝试通过 dma_heap 分配物理连续内存
-  // RK3588 通常使用 /dev/dma_heap/ 或 ION 分配器
-
-  const char* dma_heap_path = "/dev/dma_heap/system";
-  int dma_fd = open(dma_heap_path, O_RDWR | O_CLOEXEC);
-  if (dma_fd < 0) {
-    // 回退: 使用普通堆内存
-    tensor.data = new (std::nothrow) uint8_t[size];
-    if (!tensor.data) return false;
-    tensor.fd = -1;
-    tensor.size = size;
-    tensor.owns_memory = true;
-    return true;
-  }
-#endif
-
-  // DMA-BUF 分配 (需 root 权限或配置权限)
-  struct dma_heap_allocation_data heap_data;
-  memset(&heap_data, 0, sizeof(heap_data));
-  heap_data.len = size;
-  heap_data.fd_flags = O_RDWR | O_CLOEXEC;
-
-  int ret = ioctl(dma_fd, DMA_HEAP_IOCTL_ALLOC, &heap_data);
-  close(dma_fd);
-
-  if (ret < 0 || heap_data.fd < 0) {
-    // 回退: 使用普通堆内存
-    tensor.data = new (std::nothrow) uint8_t[size];
-    if (!tensor.data) return false;
-    tensor.fd = -1;
-    tensor.size = size;
-    tensor.owns_memory = true;
-    return true;
-  }
-#endif
-
-  // mmap DMA-BUF 到用户空间
-  void* mapped = mmap(nullptr, size, PROT_READ | PROT_WRITE,
-                      MAP_SHARED, heap_data.fd, 0);
-  if (mapped == MAP_FAILED) {
-    close(heap_data.fd);
-    tensor.data = new (std::nothrow) uint8_t[size];
-    if (!tensor.data) return false;
-    tensor.fd = -1;
-    tensor.size = size;
-    tensor.owns_memory = true;
-    return true;
-  }
-#endif
-
-  tensor.data = static_cast<uint8_t*>(mapped);
-  tensor.fd = heap_data.fd;
+  // Use aligned malloc (DMA heap kernel headers may not be available)
+  void* ptr = std::aligned_alloc(64, size);
+  if (!ptr) return false;
+  std::memset(ptr, 0, size);
+  tensor.data = static_cast<uint8_t*>(ptr);
+  tensor.fd = -1;
   tensor.size = size;
   tensor.owns_memory = true;
-
   return true;
 }
+
 
 // ============================================================================
 // 资源释放
