@@ -1,56 +1,37 @@
-﻿# Changelog
+﻿# Changelog - RK3588 Industrial AI Vision Toolkit
 
-## v1.0.0 (2026-06-29) — Initial Release
+## v3.0.0 (2026-06-30) - Threaded Pipeline
+### Added
+- Threaded pipeline architecture (capture + inference decoupled)
+- Ring buffer (4 slots) for zero-copy frame passing
+- Pre-allocated numpy buffers for preprocessing
+- RGA hardware acceleration support (librga.so integration)
+### Changed
+- Switched to rknpu2 official YOLOv5s model (v1.5.2 runtime compatible)
+- NPU inference: 108ms -> 21.7ms (5x faster)
+- End-to-end FPS: 8.2 -> 25.7 (3.1x improvement)
+- Memory usage: 480MB -> 393MB (-18%)
+### Fixed
+- C++ pipeline_runner RTSP soft decode fallback (CAP_FFMPEG -> CAP_ANY)
+- Engine model path resolution from YAML config
 
-### 🚀 Core Modules
+## v2.0.0 (2026-06-29) - Production Pipeline
+### Added
+- Production pipeline (prod_pipeline.py) with Dashboard API integration
+- systemd auto-start services (dashboard + pipeline + modbus)
+- Benchmark reporting tool (benchmark_report.sh)
+- Model manager script (model_manager.sh)
+- CI/CD pipeline (.github/workflows/ci.yml)
+### Changed
+- Pipeline config unified to YAML (engine.yaml)
+- Dashboard SSE real-time stats endpoint
 
-- **Zero-Copy Inference Engine** (`deploy/engine/`) — C++17 engine with RKNN API, DMA-BUF zero-copy, multi-NPU core scheduling, RGA hardware acceleration pipeline. Supports YOLOv5/v8/X with automatic NMS post-processing.
-- **Modbus TCP Server** (`deploy/protocol/modbus/`) — Multi-client concurrent server based on libmodbus, YAML-driven register mapping, 20 detection slots × 6 registers each.
-- **OPC UA Server** (`deploy/protocol/opcua/`) — Full information model with 20 detection slots, open62541-based, anonymous + username/password authentication.
-- **Python Bindings** (`deploy/engine/python/`) — pybind11 wrapper with NumPy zero-copy I/O, Context Manager support, `pip install` and cmake dual build.
-
-### ⚡ Real-Time Enhancement
-
-- **PREEMPT_RT Auto-Build** (`deploy/realtime/build_rt_kernel.sh`) — 775-line script with 22 functions: auto-detect BSP kernel, match RT patch from version matrix, download + patch + configure + build + package as .deb.
-- **CPU Isolation & IRQ Tuning** (`deploy/realtime/isolate_cpu.sh`) — One-click isolcpus + IRQ affinity + real-time scheduling limits + cyclictest benchmarking.
-- **BSP ↔ RT Patch Matrix** (`deploy/realtime/version_matrix.yaml` / `.csv`) — 7 BSP kernel versions mapped to corresponding PREEMPT_RT patches.
-
-### 🐳 Deployment
-
-- **Docker Containerization** (`deploy/docker/`) — ARM64 Dockerfile + x86_64 cross-compile Dockerfile + docker-compose (inference + modbus + opcua services) + entrypoint script.
-- **Offline Deployment Pack** (`deploy_scripts/offline_pack/build_offline.sh`) — Bundle .debs + .whls + project files into single tar.gz for air-gapped installation.
-- **TUI Config Wizard** (`deploy_scripts/oneclick/web_config.sh`) — 6-step whiptail/dialog guided configuration, auto-generates engine.yaml.
-- **Enhanced Installer** (`install.sh`) — 3 preset modes (`--full` / `--minimal` / `--ai-only`), interactive menu, install logging, post-install verification.
-
-### 🔧 Drivers & Diagnostics
-
-- **NPU Driver Management** (`patches/npu_driver/`) — Version detection + compatibility matrix check + automatic upgrade with rollback.
-- **Performance Benchmarking** (`tools/benchmark/`) — CPU/NPU/RGA throughput and latency benchmarks.
-- **System Diagnostics** (`tools/diagnose/`) — One-click fault diagnosis with HTML report.
-
-### 🧪 Testing
-
-- **45-Test Suite** (`tests/`) — Unit tests for Engine API, Modbus address parsing, OPC UA node model, integration tests for end-to-end pipeline latency and data consistency.
-- **pytest Configuration** — pytest.ini with markers: `unit`, `integration`, `slow`, `hardware`.
-
-### 📦 Supported Hardware
-
-| Board | RAM | Storage | Status |
-|-------|-----|---------|--------|
-| NanoPC T6 | 8 GB LPDDR4x | 64 GB eMMC | ✅ Primary dev board |
-| 鲁班猫 8 (LubanCat 8) | 8 GB LPDDR5 | 128 GB eMMC | ✅ Primary dev board |
-| Orange Pi 5 Max | 8 GB+ | — | ✅ Verified |
-| Radxa Rock 5B | 8 GB+ | — | ✅ Verified |
-| 飞凌 OK3588-C | 4 GB+ | — | ✅ Compatible |
-| 触觉智能 IDO-SOM3588 | — | — | ✅ Compatible |
-| 东胜 DSOM-3588 | — | — | ✅ Compatible |
-
-### 📊 Performance Targets
-
-| Metric | Target | Condition |
-|--------|--------|-----------|
-| Interrupt latency (idle) | < 20 μs | PREEMPT_RT + cyclictest |
-| Interrupt latency (loaded) | < 50 μs | stress-ng + iperf3 + NPU |
-| YOLOv5s NPU inference | 54+ FPS | 640×640 INT8, 3 NPU cores |
-| Video pipeline CPU usage | < 15% | RGA zero-copy mode |
-| One-click deploy time | < 5 min | git clone → YOLO running |
+## v1.0.0 (2026-06-28) - Initial Release
+### Added
+- C++ Zero-Copy Inference Engine (libengine.so)
+- Python bindings via pybind11 (rknn_engine)
+- Modbus TCP Server (libmodbus)
+- OPC UA Server (open62541)
+- Web Dashboard (FastAPI + SSE)
+- YOLOv5s NPU model conversion
+- RTSP camera capture support
