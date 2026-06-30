@@ -210,7 +210,7 @@ def main():
                 avg_decode = (t_decode_total / fc) * 1000 if fc > 0 else 0
                 print(f"  #{fc:4d} | {len(boxes):2d} det | {fps:5.1f} fps | "
                       f"NPU:{avg_infer:5.1f}ms Decode:{avg_decode:5.1f}ms")
-                if boxes and not args.no_display:
+                if boxes is not None and len(boxes) > 0 and not args.no_display:
                     top = CLASSES[class_ids[0]] if class_ids[0] < len(CLASSES) else "?"
                     print(f"         top: {top} {scores[0]:.2f}")
 
