@@ -1,0 +1,40 @@
+﻿[Unit]
+Description=RK3588 AI Inference Engine Service
+Documentation=https://github.com/yicechuhai/rk3588-industrial-toolkit
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rk3588-toolkit
+ExecStart=/opt/rk3588-toolkit/bin/pipeline_runner \
+    --engine /opt/rk3588-toolkit/config/engine.yaml \
+    --camera 0 \
+    --modbus /opt/rk3588-toolkit/config/modbus_example.yaml \
+    --modbus-port 502 \
+    --opcua /opt/rk3588-toolkit/config/opcua_example.yaml \
+    --opcua-port 4840
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rk3588-engine
+
+# 实时调度 (PREEMPT_RT 内核)
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=80
+LimitMEMLOCK=infinity
+LimitRTPRIO=99
+Nice=-20
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/rk3588-toolkit /tmp /dev/dri /dev/video0 /dev/rknpu
+ReadOnlyPaths=/sys/class/thermal
+
+[Install]
+WantedBy=multi-user.target

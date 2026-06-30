@@ -1,0 +1,25 @@
+﻿[Unit]
+Description=RK3588 Modbus TCP Server (Standalone)
+Documentation=https://github.com/yicechuhai/rk3588-industrial-toolkit
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rk3588-toolkit
+ExecStart=/opt/rk3588-toolkit/bin/modbus_server_demo \
+    --config /opt/rk3588-toolkit/config/modbus_example.yaml \
+    --port 502
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rk3588-modbus
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/rk3588-toolkit /tmp
+
+[Install]
+WantedBy=multi-user.target

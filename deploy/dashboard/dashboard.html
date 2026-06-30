@@ -1,0 +1,92 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RK3588 AI Vision Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0e17;color:#e0e0e0;min-height:100vh}
+.header{background:linear-gradient(135deg,#0d1525,#1a2744);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1e3a5f;flex-wrap:wrap;gap:12px}
+.header h1{font-size:1.4em;font-weight:700;background:linear-gradient(90deg,#4fc3f7,#64b5f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.status{display:flex;align-items:center;gap:8px;font-size:0.9em}
+.status-dot{width:10px;height:10px;border-radius:50%;background:#4caf50;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;padding:20px}
+.card{background:#111827;border:1px solid #1e3a5f;border-radius:12px;padding:20px;transition:all 0.3s}
+.card:hover{border-color:#4fc3f7;box-shadow:0 4px 20px rgba(79,195,247,0.1)}
+.card-label{font-size:0.7em;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:8px}
+.card-value{font-size:2em;font-weight:700;color:#4fc3f7}
+.card-unit{font-size:0.45em;color:#64748b;font-weight:400}
+.detections-panel{background:#111827;border:1px solid #1e3a5f;border-radius:12px;margin:0 20px 20px;overflow:hidden}
+.detections-header{padding:16px 20px;border-bottom:1px solid #1e3a5f;display:flex;justify-content:space-between;align-items:center}
+.detections-header h3{font-size:1em;color:#e0e0e0}
+.detections-table{width:100%;border-collapse:collapse}
+.detections-table th{text-align:left;padding:10px 20px;font-size:0.7em;text-transform:uppercase;color:#64748b;border-bottom:1px solid #1e3a5f}
+.detections-table td{padding:10px 20px;font-size:0.9em;border-bottom:1px solid #111827}
+.detections-table tr:hover{background:rgba(79,195,247,0.05)}
+.conf-bar{display:inline-block;height:4px;border-radius:2px;background:linear-gradient(90deg,#4fc3f7,#00e676);margin-right:8px;vertical-align:middle}
+.temp-warn{color:#ff9800!important}
+.temp-hot{color:#f44336!important}
+.no-data{text-align:center;padding:40px;color:#64748b}
+.footer{padding:12px 24px;text-align:center;font-size:0.75em;color:#64748b;border-top:1px solid #1e3a5f}
+</style>
+</head>
+<body>
+<div class="header">
+<h1>RK3588 AI Vision Dashboard</h1>
+<div class="status">
+<div class="status-dot" id="statusDot"></div>
+<span id="statusText">Connecting...</span>
+<span style="color:#64748b">|</span>
+<span>Uptime: <strong id="uptime">0s</strong></span>
+</div>
+</div>
+
+<div class="grid">
+<div class="card"><div class="card-label">Inference FPS</div><div class="card-value" id="fps">--<span class="card-unit">fps</span></div></div>
+<div class="card"><div class="card-label">Avg Latency</div><div class="card-value" id="latency">--<span class="card-unit">ms</span></div></div>
+<div class="card"><div class="card-label">NPU Temperature</div><div class="card-value" id="npuTemp">--<span class="card-unit">C</span></div></div>
+<div class="card"><div class="card-label">Total Frames</div><div class="card-value" id="totalFrames">0</div></div>
+<div class="card"><div class="card-label">Detections</div><div class="card-value" id="detCount">0</div></div>
+<div class="card"><div class="card-label">CPU / Memory</div><div class="card-value" style="font-size:1.2em"><span id="cpuUsage">--</span>% / <span id="memUsage">--</span>%</div></div>
+</div>
+
+<div class="detections-panel">
+<div class="detections-header"><h3>Detection Results</h3><span style="font-size:0.8em;color:#64748b">Top 10</span></div>
+<table class="detections-table">
+<thead><tr><th>#</th><th>Class</th><th>Confidence</th><th>BBox</th></tr></thead>
+<tbody id="detectionsBody"><tr><td colspan="4" class="no-data">Waiting for detections...</td></tr></tbody>
+</table>
+</div>
+
+<div class="footer">RK3588 Industrial Toolkit v1.0 | <span id="connStatus">SSE connecting...</span></div>
+
+<script>
+var es = new EventSource("/api/stream");
+es.onopen = function(){ document.getElementById("connStatus").textContent = "SSE connected"; document.getElementById("statusDot").style.background = "#4caf50"; document.getElementById("statusText").textContent = "Running"; };
+es.onerror = function(){ document.getElementById("connStatus").textContent = "SSE disconnected"; document.getElementById("statusDot").style.background = "#f44336"; };
+es.onmessage = function(e){
+    var d = JSON.parse(e.data);
+    document.getElementById("fps").innerHTML = d.fps + '<span class="card-unit">fps</span>';
+    document.getElementById("latency").innerHTML = d.avg_latency_ms + '<span class="card-unit">ms</span>';
+    var te = document.getElementById("npuTemp");
+    te.innerHTML = d.npu_temp_c + '<span class="card-unit">C</span>';
+    te.className = "card-value" + (d.npu_temp_c > 75 ? " temp-hot" : d.npu_temp_c > 60 ? " temp-warn" : "");
+    document.getElementById("totalFrames").textContent = d.total_frames;
+    document.getElementById("detCount").textContent = d.detection_count;
+    document.getElementById("cpuUsage").textContent = d.cpu_usage;
+    document.getElementById("memUsage").textContent = d.memory_usage;
+    document.getElementById("uptime").textContent = d.uptime_seconds + "s";
+    var tb = document.getElementById("detectionsBody");
+    if (d.detections && d.detections.length > 0) {
+        tb.innerHTML = d.detections.map(function(det,i){
+            return '<tr><td>'+(i+1)+'</td><td><strong>'+det.class_name+'</strong></td><td><span class="conf-bar" style="width:'+Math.round(det.confidence*80)+'px"></span>'+(det.confidence*100).toFixed(1)+'%</td><td style="font-family:monospace;font-size:0.75em">'+JSON.stringify(det.bbox).replace(/[\[\]]/g,"")+'</td></tr>';
+        }).join("");
+    } else {
+        tb.innerHTML = '<tr><td colspan="4" class="no-data">No detections</td></tr>';
+    }
+};
+</script>
+</body>
+</html>

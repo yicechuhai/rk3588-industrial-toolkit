@@ -178,11 +178,16 @@ void Engine::ParseConfig(const std::string& config_path) {
 // ============================================================================
 
 bool Engine::LoadModel(const std::string& model_path) {
-  impl_->model_path = model_path;
+  // 如果传入空字符串，使用配置文件中解析的模型路径
+  std::string effective_path = model_path.empty() ? impl_->model_path : model_path;
+  if (effective_path.empty()) {
+    return false;
+  }
+  impl_->model_path = effective_path;
 
   // 初始化子模块
   impl_->model_loader = std::make_unique<ModelLoader>();
-  if (!impl_->model_loader->Load(model_path, impl_->npu_config)) {
+  if (!impl_->model_loader->Load(effective_path, impl_->npu_config)) {
     return false;
   }
 
