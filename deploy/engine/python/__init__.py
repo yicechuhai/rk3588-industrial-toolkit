@@ -1,35 +1,51 @@
-"""
-rknn-engine — Python bindings for the RK3588 zero-copy NPU inference engine.
+﻿"""
+rknn-engine -- Python bindings for the RK3588 zero-copy NPU inference engine.
 
-Provides a high-level Pythonic interface to the C++ RK3588 inference engine,
-supporting model loading, zero-copy NumPy inference, and performance statistics.
+提供面向 Python 用户的高级 API 和底层 C++ 绑定。
 
-Typical usage:
+典型用法:
 
+    from rknn_engine import Engine          # C++ pybind11 绑定
+    from rknn_engine import RK3588Engine    # Pythonic 封装
+
+    # 推荐: 使用 Pythonic API
+    with RK3588Engine("config/engine.yaml") as eng:
+        eng.load_model("models/yolov5s.rknn")
+        detections = eng.infer(frame_np)
+        print(eng.get_stats())
+
+    # 或者: 直接使用 C++ 绑定
     from rknn_engine import Engine
-
-    # Initialize from YAML config
-    engine = Engine("config/engine.yaml")
-
-    # Load RKNN model
-    engine.load_model("models/yolov5s.rknn")
-
-    # Run inference on a NumPy frame (zero-copy)
-    import numpy as np
-    frame = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
-    detections = engine.infer(frame, format="BGR888")
-
-    # Print results
-    for det in detections:
-        print(f"{det['class_name']}: {det['confidence']:.2f} "
-              f"at {det['bbox']}")
-
-    # Get performance stats
-    stats = engine.get_stats()
-    print(f"FPS: {stats['fps']:.1f}")
+    eng = Engine("config/engine.yaml")
+    eng.load_model("models/yolov5s.rknn")
+    results = eng.infer(frame_np, format="BGR888")
 """
 
-from rknn_engine import Engine  # noqa: F401
+from rknn_engine import Engine           # noqa: F401   C++ pybind11 绑定
+from rknn_engine.engine import (         # noqa: F401   Pythonic API
+    RK3588Engine,
+    create_engine,
+    RK3588EngineError,
+    EngineInitError,
+    ModelLoadError,
+    InferenceError,
+    InvalidInputError,
+    EngineNotReadyError,
+)
 
-__all__ = ["Engine"]
-__version__ = "1.0.0"
+__all__ = [
+    # C++ 绑定
+    "Engine",
+    # Pythonic API
+    "RK3588Engine",
+    "create_engine",
+    # 异常
+    "RK3588EngineError",
+    "EngineInitError",
+    "ModelLoadError",
+    "InferenceError",
+    "InvalidInputError",
+    "EngineNotReadyError",
+]
+
+__version__ = "1.1.0"
