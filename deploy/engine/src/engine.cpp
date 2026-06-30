@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file engine.cpp
  * @brief 零拷贝推理引擎主类实现
  */
@@ -288,10 +288,10 @@ std::vector<Detection> Engine::Infer(const uint8_t* frame_data, int width,
   auto ctx = impl_->model_loader->GetContext();
   auto io_info = impl_->model_loader->GetIOInfo();
 
-  std::vector<rknn_input> inputs(io_info.inputs.size());
-  for (size_t i = 0; i < io_info.inputs.size() && i < inputs.size(); ++i) {
+  std::vector<rknn_input> inputs(io_info.num_inputs);
+  for (size_t i = 0; i < io_info.num_inputs && i < inputs.size(); ++i) {
     std::memset(&inputs[i], 0, sizeof(rknn_input));
-    inputs[i].index = io_info.inputs[i].index;
+    inputs[i].index = static_cast<uint32_t>(i);
     inputs[i].type = RKNN_TENSOR_UINT8;
     inputs[i].size = tensor.size;
     inputs[i].buf = const_cast<uint8_t*>(tensor.data);
@@ -309,9 +309,10 @@ std::vector<Detection> Engine::Infer(const uint8_t* frame_data, int width,
   }
 
   // Get outputs via standard API
-  std::vector<rknn_output> outputs(io_info.outputs.size());
-  for (size_t i = 0; i < io_info.outputs.size(); ++i) {
+  std::vector<rknn_output> outputs(io_info.num_outputs);
+  for (size_t i = 0; i < io_info.num_outputs; ++i) {
     std::memset(&outputs[i], 0, sizeof(rknn_output));
+    outputs[i].index = static_cast<uint32_t>(i);
     outputs[i].want_float = 1;
     outputs[i].is_prealloc = 0;
   }
