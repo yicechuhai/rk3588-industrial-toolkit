@@ -177,6 +177,11 @@ int main(int argc, char* argv[]) {
   if (camera_source.find("rtsp://") == 0) {
     std::cout << "[pipeline] Opening RTSP: " << camera_source << std::endl;
     cp = cap.open(camera_source, cv::CAP_FFMPEG);
+    if (!cp) {
+      std::cout << "[pipeline] RTSP FFMPEG failed, trying software codec..." << std::endl;
+      cap.release();
+      cp = cap.open(camera_source, cv::CAP_ANY);
+    }
   } else if (camera_source.find("/dev/video") == 0) {
     std::cout << "[pipeline] Opening V4L2: " << camera_source << std::endl;
     cp = cap.open(camera_source, cv::CAP_V4L2);

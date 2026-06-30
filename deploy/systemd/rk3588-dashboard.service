@@ -1,0 +1,14 @@
+﻿[Unit]
+Description=RK3588 Dashboard Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rk3588-toolkit/deploy/dashboard
+ExecStart=/usr/bin/python3 /opt/rk3588-toolkit/deploy/dashboard/dashboard_server.py --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

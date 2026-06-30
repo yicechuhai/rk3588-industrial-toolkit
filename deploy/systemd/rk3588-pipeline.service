@@ -1,40 +1,20 @@
 ﻿[Unit]
-Description=RK3588 AI Inference Engine Service
-Documentation=https://github.com/yicechuhai/rk3588-industrial-toolkit
-After=network.target
-Wants=network.target
+Description=RK3588 Production Pipeline
+After=network.target rk3588-dashboard.service
+Wants=rk3588-dashboard.service
 
 [Service]
 Type=simple
-User=root
+User=cat
+Environment=HOME=/home/cat
+Environment=PYTHONPATH=/home/cat/.local/lib/python3.10/site-packages
+Environment=RTSP_URL=rtsp://192.168.1.168:554/stream
+Environment=MODEL_PATH=/opt/rk3588-toolkit/models/yolov5s-640-640.rknn
+Environment=DASHBOARD_URL=http://localhost:8080
 WorkingDirectory=/opt/rk3588-toolkit
-ExecStart=/opt/rk3588-toolkit/bin/pipeline_runner \
-    --engine /opt/rk3588-toolkit/config/engine.yaml \
-    --camera 0 \
-    --modbus /opt/rk3588-toolkit/config/modbus_example.yaml \
-    --modbus-port 502 \
-    --opcua /opt/rk3588-toolkit/config/opcua_example.yaml \
-    --opcua-port 4840
-
+ExecStart=/usr/bin/python3 /opt/rk3588-toolkit/bin/prod_pipeline.py
 Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=rk3588-engine
-
-# 实时调度 (PREEMPT_RT 内核)
-CPUSchedulingPolicy=fifo
-CPUSchedulingPriority=80
-LimitMEMLOCK=infinity
-LimitRTPRIO=99
-Nice=-20
-
-# 安全加固
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/opt/rk3588-toolkit /tmp /dev/dri /dev/video0 /dev/rknpu
-ReadOnlyPaths=/sys/class/thermal
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
