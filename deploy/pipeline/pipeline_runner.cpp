@@ -1,18 +1,9 @@
 // =============================================================================
 // pipeline_runner.cpp — RK3588 统一推理流水线主程序
 // =============================================================================
-// 整合: 摄像头采集 → RGA预处理 → NPU推理 → Modbus + OPC UA 双协议输出
-//
 // 用法:
-//   pipeline_runner --engine config/engine.yaml \
-//                   --modbus config/modbus_example.yaml \
-//                   --opcua config/opcua_example.yaml \
-//                   --camera rtsp://192.168.1.100:554/stream
 //   pipeline_runner --engine config/engine.yaml --camera /dev/video0
-//   pipeline_runner --engine config/engine.yaml --camera 0  (USB摄像头索引)
-//
-// 依赖: librknnrt, librga, libmodbus, open62541, OpenCV, yaml-cpp
-// =============================================================================
+//   pipeline_runner --engine config.yaml --camera rtsp://ip:554/stream --display
 
 #include <atomic>
 #include <chrono>
@@ -29,37 +20,24 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 
-// 引擎头文件
 #include "engine.h"
-
-// 协议头文件
 #include "modbus_server.h"
 #include "opcua_server.h"
-
-// =============================================================================
-// 全局状态（信号处理用）
-// =============================================================================
 
 namespace {
 
 std::atomic<bool> g_running{true};
 
 void SignalHandler(int signum) {
-  std::cout << "\n[pipeline] 收到信号 " << signum << "，正在安全退出..." << std::endl;
+  std::cout << "\n[pipeline] Received signal " << signum << ", shutting down..." << std::endl;
   g_running.store(false);
 }
-
-// =============================================================================
-// 辅助: 引擎 Detection → Modbus Detection (去归一化)
-// =============================================================================
 
 rk3588::protocol::modbus::Detection ConvertToModbus(
     const rk3588::engine::Detection& src, int frame_w, int frame_h) {
   rk3588::protocol::modbus::Detection dst;
   dst.class_id = src.class_id;
   dst.confidence = src.confidence;
-
-  // 去归一化坐标 (0~1 → 像素坐标)
   dst.x1 = static_cast<int>(src.x1 * frame_w);
   dst.y1 = static_cast<int>(src.y1 * frame_h);
   dst.x2 = static_cast<int>(src.x2 * frame_w);
@@ -67,36 +45,24 @@ rk3588::protocol::modbus::Detection ConvertToModbus(
   dst.center_x = (dst.x1 + dst.x2) / 2;
   dst.center_y = (dst.y1 + dst.y2) / 2;
   dst.area = (dst.x2 - dst.x1) * (dst.y2 - dst.y1);
-
   return dst;
 }
-
-// =============================================================================
-// 辅助: 引擎 Detection → OPC UA DetectionResult (x,y,w,h 格式)
-// =============================================================================
 
 rk3588::protocol::opcua::DetectionResult ConvertToOpcua(
     const rk3588::engine::Detection& src, int frame_w, int frame_h) {
   rk3588::protocol::opcua::DetectionResult dst;
   dst.class_id = static_cast<uint16_t>(src.class_id);
   dst.confidence = src.confidence;
-
   float x1 = src.x1 * frame_w;
   float y1 = src.y1 * frame_h;
   float x2 = src.x2 * frame_w;
   float y2 = src.y2 * frame_h;
-
   dst.bbox_x = x1;
   dst.bbox_y = y1;
   dst.bbox_w = x2 - x1;
   dst.bbox_h = y2 - y1;
-
   return dst;
 }
-
-// =============================================================================
-// 辅助: 读取 NPU 温度 (通过 sysfs)
-// =============================================================================
 
 float ReadNpuTemperature() {
   std::ifstream temp_file("/sys/class/thermal/thermal_zone0/temp");
@@ -112,36 +78,27 @@ float ReadNpuTemperature() {
   return 0.0f;
 }
 
-// =============================================================================
-// 辅助: 打印用法
-// =============================================================================
-
 void PrintUsage(const char* prog) {
   std::cout
-      << "RK3588 工业推理流水线 v1.0\n"
-      << "用法: " << prog << " [选项]\n"
-      << "选项:\n"
-      << "  --engine <path>    引擎 YAML 配置文件 (必需)\n"
-      << "  --camera <source>  摄像头源: rtsp://... | /dev/video0 | 0 (必需)\n"
-      << "  --modbus <path>    Modbus 寄存器映射 YAML (可选)\n"
-      << "  --modbus-port <n>  Modbus TCP 端口 (默认 502)\n"
-      << "  --opcua <path>     OPC UA 配置文件 YAML (可选)\n"
-      << "  --opcua-port <n>   OPC UA 端口 (默认 4840)\n"
-      << "  --no-modbus        禁用 Modbus 服务\n"
-      << "  --no-opcua         禁用 OPC UA 服务\n"
-      << "  --display          显示推理画面 (需要 X11/桌面环境)\n"
-      << "  --help             显示此帮助\n"
+      << "RK3588 Industrial Pipeline v1.0\n"
+      << "Usage: " << prog << " [options]\n"
+      << "Options:\n"
+      << "  --engine <path>    Engine YAML config (required)\n"
+      << "  --camera <source>  Camera source: rtsp://... | /dev/video0 | 0 (required)\n"
+      << "  --modbus <path>    Modbus register map YAML\n"
+      << "  --modbus-port <n>  Modbus TCP port (default 502)\n"
+      << "  --opcua <path>     OPC UA config YAML\n"
+      << "  --opcua-port <n>   OPC UA port (default 4840)\n"
+      << "  --no-modbus        Disable Modbus\n"
+      << "  --no-opcua         Disable OPC UA\n"
+      << "  --display          Show inference display\n"
+      << "  --help             Show this help\n"
       << std::endl;
 }
 
 }  // namespace
 
-// =============================================================================
-// 主函数
-// =============================================================================
-
 int main(int argc, char* argv[]) {
-  // ── 参数解析 ──
   std::string engine_config;
   std::string camera_source;
   std::string modbus_config;
@@ -176,259 +133,168 @@ int main(int argc, char* argv[]) {
       PrintUsage(argv[0]);
       return 0;
     } else {
-      std::cerr << "未知参数: " << arg << std::endl;
+      std::cerr << "Unknown arg: " << arg << std::endl;
       PrintUsage(argv[0]);
       return 1;
     }
   }
 
-  // ── 参数校验 ──
-  if (engine_config.empty()) {
-    std::cerr << "[pipeline] 错误: 必须指定 --engine 配置路径" << std::endl;
-    PrintUsage(argv[0]);
-    return 1;
-  }
-  if (camera_source.empty()) {
-    std::cerr << "[pipeline] 错误: 必须指定 --camera 摄像头源" << std::endl;
+  if (engine_config.empty() || camera_source.empty()) {
     PrintUsage(argv[0]);
     return 1;
   }
 
-  // ── 注册信号处理 ──
   std::signal(SIGINT, SignalHandler);
   std::signal(SIGTERM, SignalHandler);
 
-  // ===========================================================================
-  // 阶段 1: 初始化引擎
-  // ===========================================================================
-  std::cout << "[pipeline] ===== 阶段 1/4: 初始化推理引擎 =====" << std::endl;
-
+  // Phase 1: Init engine
+  std::cout << "[pipeline] Phase 1/4: Init engine..." << std::endl;
   std::unique_ptr<rk3588::engine::Engine> engine;
   try {
     engine = std::make_unique<rk3588::engine::Engine>(engine_config);
-    std::cout << "[pipeline] 引擎配置解析成功" << std::endl;
+    std::cout << "[pipeline] Config parsed" << std::endl;
   } catch (const std::exception& e) {
-    std::cerr << "[pipeline] 引擎初始化失败: " << e.what() << std::endl;
+    std::cerr << "[pipeline] Engine init failed: " << e.what() << std::endl;
+    return 1;
+  }
+
+  if (!engine->LoadModel("")) {
+    std::cerr << "[pipeline] Model load failed" << std::endl;
     return 1;
   }
 
   if (!engine->IsReady()) {
-    std::cerr << "[pipeline] 模型加载失败或引擎未就绪" << std::endl;
+    std::cerr << "[pipeline] Engine not ready" << std::endl;
     return 1;
   }
+  std::cout << "[pipeline] Engine ready" << std::endl;
 
-  std::cout << "[pipeline] 引擎就绪" << std::endl;
-
-  // ===========================================================================
-  // 阶段 2: 初始化摄像头
-  // ===========================================================================
-  std::cout << "[pipeline] ===== 阶段 2/4: 打开摄像头 =====" << std::endl;
-
-  cv::VideoCapture cap;
+  // Phase 2: Open camera
+  std::cout << "[pipeline] Phase 2/4: Open camera..." << std::endl;
+    cv::VideoCapture cap;
+  bool cp = false;
+  
   if (camera_source.find("rtsp://") == 0) {
-    std::cout << "[pipeline] 打开 RTSP 流: " << camera_source << std::endl;
-    cap.open(camera_source, cv::CAP_FFMPEG);
+    std::cout << "[pipeline] Opening RTSP: " << camera_source << std::endl;
+    cp = cap.open(camera_source, cv::CAP_FFMPEG);
   } else if (camera_source.find("/dev/video") == 0) {
-    std::cout << "[pipeline] 打开 V4L2 设备: " << camera_source << std::endl;
-    cap.open(camera_source, cv::CAP_V4L2);
+    std::cout << "[pipeline] Opening V4L2: " << camera_source << std::endl;
+    cp = cap.open(camera_source, cv::CAP_V4L2);
   } else {
     int cam_idx = std::stoi(camera_source);
-    std::cout << "[pipeline] 打开摄像头索引: " << cam_idx << std::endl;
-    cap.open(cam_idx, cv::CAP_V4L2);
+    std::cout << "[pipeline] Opening idx " << cam_idx << " (V4L2 first)..." << std::endl;
+    cp = cap.open(cam_idx, cv::CAP_V4L2);
+    if (!cp) {
+      std::cout << "[pipeline] Trying CAP_ANY..." << std::endl;
+      cp = cap.open(cam_idx, cv::CAP_ANY);
+    }
   }
 
-  if (!cap.isOpened()) {
-    std::cerr << "[pipeline] 无法打开摄像头: " << camera_source << std::endl;
+  if (!cp || !cap.isOpened()) {
+    std::cerr << "[pipeline] Camera failed" << std::endl;
     return 1;
   }
-
-  cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('N', 'V', '1', '2'));
-  cap.set(cv::CAP_PROP_FRAME_WIDTH, 1920);
-  cap.set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
-  cap.set(cv::CAP_PROP_FPS, 30);
 
   int cam_w = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_WIDTH));
   int cam_h = static_cast<int>(cap.get(cv::CAP_PROP_FRAME_HEIGHT));
   double cam_fps = cap.get(cv::CAP_PROP_FPS);
+  std::cout << "[pipeline] Camera: " << cam_w << "x" << cam_h << " @ " << cam_fps << " FPS" << std::endl;
 
-  std::cout << "[pipeline] 摄像头: " << cam_w << "x" << cam_h
-            << " @ " << cam_fps << " FPS" << std::endl;
-
-  // ===========================================================================
-  // 阶段 3: 初始化工业协议
-  // ===========================================================================
-  std::cout << "[pipeline] ===== 阶段 3/4: 启动工业协议服务 =====" << std::endl;
-
-  // ── Modbus ──
+  // Phase 3: Start protocol servers
+  std::cout << "[pipeline] Phase 3/4: Start protocols..." << std::endl;
   std::unique_ptr<rk3588::protocol::modbus::ModbusServer> modbus_server;
   if (enable_modbus) {
     modbus_server = std::make_unique<rk3588::protocol::modbus::ModbusServer>(modbus_port);
-
     if (!modbus_config.empty()) {
-      if (!modbus_server->LoadRegisterMap(modbus_config)) {
-        std::cerr << "[pipeline] 警告: Modbus 寄存器映射加载失败，使用默认映射" << std::endl;
-      } else {
-        std::cout << "[pipeline] Modbus 寄存器映射加载成功: " << modbus_config << std::endl;
-      }
+      modbus_server->LoadRegisterMap(modbus_config);
     }
-
-    if (!modbus_server->Start()) {
-      std::cerr << "[pipeline] 警告: Modbus 服务启动失败" << std::endl;
-      modbus_server.reset();
-    } else {
-      std::cout << "[pipeline] Modbus TCP Server 已启动 (0.0.0.0:" << modbus_port << ")" << std::endl;
+    if (modbus_server->Start()) {
       modbus_server->SetStatus(1);
+      std::cout << "[pipeline] Modbus TCP on ::" << modbus_port << std::endl;
+    } else {
+      modbus_server.reset();
     }
   }
 
-  // ── OPC UA ──
   std::unique_ptr<rk3588::protocol::opcua::OpcuaServer> opcua_server;
   if (enable_opcua) {
     opcua_server = std::make_unique<rk3588::protocol::opcua::OpcuaServer>(opcua_port);
-
-    if (!opcua_server->Start()) {
-      std::cerr << "[pipeline] 警告: OPC UA 服务启动失败" << std::endl;
-      opcua_server.reset();
+    if (opcua_server->Start()) {
+      std::cout << "[pipeline] OPC UA on ::" << opcua_port << std::endl;
     } else {
-      std::cout << "[pipeline] OPC UA Server 已启动 (0.0.0.0:" << opcua_port << ")" << std::endl;
+      opcua_server.reset();
     }
   }
 
-  // ===========================================================================
-  // 阶段 4: 主推理循环
-  // ===========================================================================
-  std::cout << "[pipeline] ===== 阶段 4/4: 进入推理循环 =====" << std::endl;
-  std::cout << "[pipeline] 按 Ctrl+C 安全退出" << std::endl;
-
+  // Phase 4: Inference loop
+  std::cout << "[pipeline] Phase 4/4: Inference loop (Ctrl+C to stop)" << std::endl;
   cv::Mat frame;
   uint64_t frame_count = 0;
   auto loop_start = std::chrono::steady_clock::now();
   auto last_report = loop_start;
 
   while (g_running.load()) {
-    // ── 采集帧 ──
-    if (!cap.read(frame)) {
-      std::cerr << "[pipeline] 读帧失败，尝试重连..." << std::endl;
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (!cap.read(frame) || frame.empty()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
       continue;
     }
 
-    if (frame.empty()) {
-      continue;
-    }
-
-    // ── 推理 ──
-    auto detections = engine->Infer(
-        frame.data,
-        frame.cols,
-        frame.rows,
-        "BGR888");
-
+    auto detections = engine->Infer(frame.data, frame.cols, frame.rows, "BGR888");
     ++frame_count;
 
-    // ── 更新 Modbus ──
     if (modbus_server && modbus_server->IsRunning()) {
       modbus_server->UpdateHeartbeat();
-
-      std::vector<rk3588::protocol::modbus::Detection> modbus_dets;
-      modbus_dets.reserve(detections.size());
-      for (const auto& det : detections) {
-        modbus_dets.push_back(ConvertToModbus(det, frame.cols, frame.rows));
-      }
-      modbus_server->UpdateDetections(modbus_dets);
-
-      auto stats = engine->GetStats();
-      modbus_server->SetFps(static_cast<float>(stats.fps));
+      std::vector<rk3588::protocol::modbus::Detection> mdets;
+      mdets.reserve(detections.size());
+      for (const auto& d : detections) mdets.push_back(ConvertToModbus(d, frame.cols, frame.rows));
+      modbus_server->UpdateDetections(mdets);
+      auto st = engine->GetStats();
+      modbus_server->SetFps(static_cast<float>(st.fps));
       modbus_server->SetTemperature(ReadNpuTemperature());
     }
 
-    // ── 更新 OPC UA ──
     if (opcua_server && opcua_server->IsRunning()) {
-      std::vector<rk3588::protocol::opcua::DetectionResult> opcua_dets;
-      opcua_dets.reserve(detections.size());
-      for (const auto& det : detections) {
-        opcua_dets.push_back(ConvertToOpcua(det, frame.cols, frame.rows));
-      }
-      opcua_server->UpdateDetectionResults(opcua_dets);
-
-      auto stats = engine->GetStats();
-      rk3588::protocol::opcua::SystemStatus sys_status;
-      sys_status.inference_fps = static_cast<float>(stats.fps);
-      sys_status.npu_temperature = ReadNpuTemperature();
-      sys_status.cpu_usage = 0.0f;
-      sys_status.memory_usage = 0.0f;
-      opcua_server->UpdateSystemStatus(sys_status);
+      std::vector<rk3588::protocol::opcua::DetectionResult> odets;
+      odets.reserve(detections.size());
+      for (const auto& d : detections) odets.push_back(ConvertToOpcua(d, frame.cols, frame.rows));
+      opcua_server->UpdateDetectionResults(odets);
+      auto st = engine->GetStats();
+      rk3588::protocol::opcua::SystemStatus ss;
+      ss.inference_fps = static_cast<float>(st.fps);
+      ss.npu_temperature = ReadNpuTemperature();
+      opcua_server->UpdateSystemStatus(ss);
     }
 
-    // ── 显示画面 (可选) ──
     if (enable_display) {
-      for (const auto& det : detections) {
-        int x1 = static_cast<int>(det.x1 * frame.cols);
-        int y1 = static_cast<int>(det.y1 * frame.rows);
-        int x2 = static_cast<int>(det.x2 * frame.cols);
-        int y2 = static_cast<int>(det.y2 * frame.rows);
-
-        cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2),
-                      cv::Scalar(0, 255, 0), 2);
-        cv::putText(frame,
-                    det.class_name + " " + std::to_string(det.confidence).substr(0, 4),
-                    cv::Point(x1, y1 - 5),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5,
-                    cv::Scalar(0, 255, 0), 1);
+      for (const auto& d : detections) {
+        int x1 = static_cast<int>(d.x1 * frame.cols);
+        int y1 = static_cast<int>(d.y1 * frame.rows);
+        int x2 = static_cast<int>(d.x2 * frame.cols);
+        int y2 = static_cast<int>(d.y2 * frame.rows);
+        cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(0, 255, 0), 2);
       }
       cv::imshow("RK3588 Pipeline", frame);
-      if (cv::waitKey(1) == 27) {
-        g_running.store(false);
-      }
+      if (cv::waitKey(1) == 27) g_running.store(false);
     }
 
-    // ── 定期性能报告 (每5秒) ──
     auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration<double>(now - last_report).count();
-    if (elapsed >= 5.0) {
-      auto stats = engine->GetStats();
-      double total_elapsed = std::chrono::duration<double>(now - loop_start).count();
-      double avg_fps = static_cast<double>(frame_count) / total_elapsed;
-
-      std::cout << "[pipeline] 帧数: " << frame_count
-                << " | FPS: " << stats.fps
-                << " | 平均FPS: " << avg_fps
-                << " | 延迟: " << stats.avg_latency_ms << "ms"
-                << " | NPU温度: " << ReadNpuTemperature() << "°C"
-                << " | 检测数: " << detections.size()
-                << std::endl;
-
+    if (std::chrono::duration<double>(now - last_report).count() >= 5.0) {
+      auto st = engine->GetStats();
+      // stats period
+      std::cout << "[pipeline] Frames:" << frame_count << " FPS:" << st.fps
+                << " Latency:" << st.avg_latency_ms << "ms"
+                << " Temp:" << ReadNpuTemperature() << "C"
+                << " Dets:" << detections.size() << std::endl;
       last_report = now;
     }
   }
 
-  // ===========================================================================
-  // 清理
-  // ===========================================================================
-  std::cout << "\n[pipeline] ===== 正在安全关闭 =====" << std::endl;
-
+  // Cleanup
+  std::cout << "\n[pipeline] Shutting down..." << std::endl;
   cap.release();
-  cv::destroyAllWindows();
-
-  if (modbus_server) {
-    modbus_server->SetStatus(0);
-    modbus_server->Stop();
-    std::cout << "[pipeline] Modbus 服务已停止" << std::endl;
-  }
-
-  if (opcua_server) {
-    opcua_server->Stop();
-    std::cout << "[pipeline] OPC UA 服务已停止" << std::endl;
-  }
-
-  auto final_stats = engine->GetStats();
-  std::cout << "\n[pipeline] ===== 最终统计 =====" << std::endl;
-  std::cout << "  总帧数:     " << frame_count << std::endl;
-  std::cout << "  平均FPS:    " << final_stats.fps << std::endl;
-  std::cout << "  平均延迟:   " << final_stats.avg_latency_ms << " ms" << std::endl;
-  std::cout << "  最小延迟:   " << final_stats.min_latency_ms << " ms" << std::endl;
-  std::cout << "  最大延迟:   " << final_stats.max_latency_ms << " ms" << std::endl;
-  std::cout << "[pipeline] 程序正常退出" << std::endl;
-
+  if (modbus_server) { modbus_server->SetStatus(0); modbus_server->Stop(); }
+  if (opcua_server) { opcua_server->Stop(); }
+  auto st = engine->GetStats();
+  std::cout << "[pipeline] Frames:" << frame_count << " AvgFPS:" << st.fps << " AvgLat:" << st.avg_latency_ms << "ms" << std::endl;
   return 0;
 }
