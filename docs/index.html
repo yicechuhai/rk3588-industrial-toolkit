@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RK3588 OpenLab - 让RK3588开发像树莓派一样简单</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #0d1117; color: #c9d1d9; line-height:1.6; }
+.container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
+h1 { font-size: 2.2em; color: #58a6ff; margin-bottom: 10px; }
+.tagline { color: #8b949e; font-size: 1.1em; margin-bottom: 30px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; margin: 20px 0; }
+.card h2 { color: #58a6ff; margin-bottom: 12px; font-size: 1.3em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.stat { text-align: center; padding: 16px; background: #0d1117; border-radius: 6px; }
+.stat .num { font-size: 2em; color: #58a6ff; font-weight: bold; }
+.stat .label { color: #8b949e; margin-top: 4px; }
+pre { background: #0d1117; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 0.9em; }
+code { color: #7ee787; }
+a { color: #58a6ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.badges { margin: 16px 0; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 13px; margin: 0 8px 8px 0; }
+.badge-blue { background: #1f6feb; color: white; }
+.badge-green { background: #238636; color: white; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+td, th { padding: 10px 14px; text-align: left; border-bottom: 1px solid #30363d; }
+th { color: #58a6ff; }
+.nav { display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; }
+.nav a { padding: 8px 16px; background: #21262d; border-radius: 6px; border: 1px solid #30363d; }
+.nav a:hover { background: #30363d; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>RK3588 OpenLab</h1>
+<p class="tagline">国内首个围绕RK3588芯片的开源中间件+生态知识库一体化平台</p>
+
+<div class="badges">
+<span class="badge badge-blue">MIT / Apache 2.0</span>
+<span class="badge badge-green">v1.0</span>
+<span class="badge badge-blue">RK3588</span>
+<span class="badge badge-green">NPU 23.5 FPS</span>
+</div>
+
+<div class="nav">
+<a href="https://gitee.com/rk3588kaifa/rk3588-open-lab">代码仓库</a>
+<a href="tutorials/quick-start.html">快速开始</a>
+<a href="api/">API 文档</a>
+<a href="https://gitee.com/rk3588kaifa/rk3588-open-lab/wikis">Wiki 知识库</a>
+<a href="https://gitee.com/rk3588kaifa/rk3588-open-lab/issues">Issue</a>
+</div>
+
+<div class="card">
+<h2>实测性能 (NanoPC-T6)</h2>
+<div class="grid">
+<div class="stat"><div class="num">23.5</div><div class="label">流水线 FPS</div></div>
+<div class="stat"><div class="num">32.2</div><div class="label">NPU 纯推理 FPS</div></div>
+<div class="stat"><div class="num">26.1ms</div><div class="label">NPU 推理延迟</div></div>
+<div class="stat"><div class="num">37°C</div><div class="label">满载温度</div></div>
+</div>
+</div>
+
+<div class="card">
+<h2>快速开始</h2>
+<pre><code>git clone https://gitee.com/rk3588kaifa/rk3588-open-lab.git
+cd rk3588-open-lab
+pip3 install rknn-toolkit-lite2 numpy opencv-python
+python3 tools/rtsp_detector.py --model models/yolov5s.rknn --rtsp rtsp://camera:554/stream --benchmark</code></pre>
+</div>
+
+<div class="card">
+<h2>模块</h2>
+<table>
+<tr><th>模块</th><th>说明</th></tr>
+<tr><td>工业协议中间件</td><td>EtherCAT / Profinet / OPC UA / Modbus TCP</td></tr>
+<tr><td>国产OS适配套件</td><td>麒麟OS / UOS / NeoCertify 信创认证</td></tr>
+<tr><td>AI推理引擎</td><td>NPU多核调度 / 模型工具链 / RGA零拷贝</td></tr>
+<tr><td>实时内核</td><td>PREEMPT_RT / CPU隔离 / 抖动监控</td></tr>
+</table>
+</div>
+</div>
+</body>
+</html>
