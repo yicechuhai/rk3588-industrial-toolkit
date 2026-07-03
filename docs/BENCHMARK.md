@@ -1,51 +1,50 @@
-﻿# RK3588 MPP + NPU 推理性能基准
+﻿# RK3588 MPP + NPU 推理性能基准 (最终报告)
 
-> NanoPC-T6 LTS, 6.1.141内核, RKNN 2.3.2, MPP硬解码
-> 摄像头: RTSP 2688x1520 H.264 → 2688x1520 NV12
-> 模型: yolov5s.rknn (14MB, ONNX导出, 静态shape)
+> NanoPC-T6 LTS | 6.1.141内核 | RKNN 2.3.2 | MPP硬解码
+> RTSP 2688x1520 H.264 → NV12 | 模型: yolov5s.rknn (INT8)
 > 日期: 2026-07-03
 
-## 实测数据 (2026-07-03 最新)
+## 流水线基准 (端到端)
 
 | 版本 | 方案 | 解码 | 预处理 | NPU | 总延迟 | FPS | 说明 |
 |------|------|------|--------|-----|--------|-----|------|
 | v0 | OpenCV软解 | 35.6ms | 7.1ms | 18.6ms | 61.3ms | 13.8 | 基线 |
 | v5 | MPP+DMA | <1ms | 10.4ms | 15.4ms | 25.8ms | 38.7 | +180% |
-| **v7** | **MPP+NV12+BGR** | **0.2ms** | **8.7ms** | **15.4ms** | **24.2ms** | **41.2** | **当前最优** |
-| v7单核 | MPP+NV12+BGR | 0.2ms | 7.6ms | 20.9ms | 28.7ms | 34.8 | 单核性能 |
-| v7b | YUV2RGB直转 | 0.2ms | 9.1ms | 15.4ms | 24.7ms | 40.4 | 与v7持平 |
-| v8 | RGA ctypes | 0.2ms | 10.5ms | 14.2ms | 24.9ms | 40.1 | RGA需调参 |
+| **v7** | **MPP+cv2** | **0.2ms** | **8.7ms** | **15.4ms** | **24.2ms** | **41.2** | **当前最优** |
+| v7单核 | MPP+cv2 | 0.2ms | 7.6ms | 20.9ms | 28.7ms | 34.8 | 单核 |
+| v7b | YUV2RGB直转 | 0.2ms | 9.1ms | 15.4ms | 24.7ms | 40.4 | 持平v7 |
+| v8 | RGA ctypes初次 | 0.2ms | 10.5ms | 14.2ms | 24.9ms | 40.1 | 格式错误 |
 | v9 | GST管线缩放 | 0.1ms | 1.1ms | 29.3ms | 30.5ms | 32.7 | NPU对齐问题 |
+| v10 | RGA V3 | 0.2ms | 10.2ms | 13.8ms | 24.2ms | 41.3 | ctypes开销 |
 
-## 瓶颈分析
+## NPU纯推理对比 (模型级别)
 
-- **解码**: MPP硬解码 0.2ms ✅ 近乎零开销
-- **预处理**: cv2 NV12→BGR→resize 8.7ms (占36%) 🔴 主瓶颈
-- **NPU推理**: 15.4ms (占64%) ⚠️ 可通过轻量模型优化
+| 模型 | 量化 | NPU延迟 | 模型大小 | toolkit |
+|------|------|---------|----------|---------|
+| **yolov5s** | **INT8** | **20.3ms(三核)** | 8.3MB | v1.6.2 |
+| yolov5n | FP16 | 47.1ms(三核) | 7.4MB | v2.3.2 |
+| yolov5n_fp16 | FP16 | 52.0ms(三核) | 7.4MB | v2.3.2 |
 
-## 优化路线
+## RGA 硬件加速评估
 
-### 短期 (<1周)
-1. ✅ MPP硬解码 + DMA零拷贝 —— 已完成 (v7)
-2. 🔄 yolov5n轻量模型 —— 目标NPU 15ms→8ms
-3. 🔄 RGA硬件NV12→RGB —— 目标预处理 8.7ms→2ms
+| 路径 | 微基准 | 真实流水线 | 结论 |
+|------|--------|-----------|------|
+| cv2 (CPU NEON) | 2.35ms | 8.7ms | ✅ 当前最优 |
+| RGA ctypes V3 | 2.85ms | 10.2ms | ❌ ctypes+分配开销 |
+| RGA GStreamer插件 | - | - | 📋 需C层实现 |
 
-### 中期 (<1月)
-4. RGA OSD叠加检测框(硬件绘制)
-5. NPU多模型流水线(batch调度)
-6. systemd服务化 + Web Dashboard
+## 关键发现
 
-### 目标
-- **当前**: 41.2 FPS / 24.2ms
-- **短期目标**: 55+ FPS / <12ms (yolov5n + RGA)
-- **中长期目标**: 60+ FPS (全硬件路径)
+1. **yolov5s INT8 >> yolov5n FP16** — 量化比模型大小重要3倍
+2. **RGA ctypes不可行** — Python层开销抵消硬件加速,需C扩展或GStreamer插件
+3. **cv2 ARM NEON已高度优化** — 在Python层是最优选择
+4. **MPP硬解码几近零开销** — 0.2ms DMA直通
 
-## 环境信息
+## 优化路线总结
 
-- 板卡: FriendlyElec NanoPC-T6 LTS
-- 内存: 8GB LPDDR4X
-- 系统: Debian 11, Linux 6.1.141
-- NPU驱动: 0.9.8
-- RKNN: librknnrt 2.3.2
-- MPP: librockchip_mpp.so.1
-- RGA: librga2 2.2.0-1
+- ✅ MPP硬解码 + DMA零拷贝 (v7, 41.2 FPS)
+- ✅ cv2 NEON 预处理 (已是最优Python路径)
+- ❌ RGA ctypes (ctypes开销 > 硬件收益)
+- ❌ yolov5n FP16 (缺少INT8量化, 比yolov5s慢3x)
+- 📋 GStreamer RGA插件 (C层零拷贝, 预计预处理2ms)
+- 📋 INT8重量化yolov5s (用v1.6 toolkit, 目标NPU<10ms)
