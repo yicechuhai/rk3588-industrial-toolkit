@@ -1,187 +1,105 @@
-﻿# RK3588 Industrial Vision & Real-time Control Toolkit
+﻿# RK3588 OpenLab — 让RK3588开发像树莓派一样简单
 
-**RK3588 工业视觉与实时控制中间件** — 让 AI 视觉部署从"3个月调优"压缩到"半天评估 + 1天集成"。
+> 国内首个围绕RK3588芯片的"开源中间件+生态知识库"一体化平台
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-RK3588-orange)]()
-[![Ubuntu](https://img.shields.io/badge/OS-Ubuntu%2022.04-brightgreen)]()
-
----
-
-## 🎯 一句话
-
-你不用再花 3 个月折腾内核、NPU 驱动和模型部署。脚本给你，跑一下就行。
+[![Gitee Stars](https://gitee.com/RK3588kaifa/RK3588-OpenLab/badge/star.svg)](https://gitee.com/RK3588kaifa/RK3588-OpenLab)
+[![License](https://img.shields.io/badge/license-MIT%2FApache2.0-blue)](LICENSE)
+[![Gitee](https://img.shields.io/badge/Gitee-主仓库-red)](https://gitee.com/RK3588kaifa/RK3588-OpenLab)
+[![GitHub](https://img.shields.io/badge/GitHub-镜像-blue)](https://github.com/yicechuhai/rk3588-industrial-toolkit)
 
 ---
 
-## 📦 Project Structure / 项目结构
+## 🔥 最新性能 (2026-07-03)
 
-k3588-industrial-toolkit/
-├── deploy_scripts/                  # ⭐ One-click Deploy
-│   ├── env_check/check_env.sh       # Environment health report (HTML)
-│   ├── demo/run_yolov5_demo.sh      # YOLOv5s real-time detection
-│   ├── oneclick/web_config.sh       # TUI config wizard
-│   └── offline_pack/                # Offline deployment pack
-│
-├── deploy/                          # Core Modules
-│   ├── engine/                      # 🔥 Zero-Copy Inference Engine
-│   │   ├── include/ (5 headers)     #   Engine, ModelLoader, Pre/PostProcessor, RGA
-│   │   ├── src/ (6 .cpp files)      #   DMA-BUF + RGA + YOLOv5/v8/X
-│   │   ├── python/                  #   pybind11 (NumPy zero-copy + Context Manager)
-│   │   └── CMakeLists.txt          #   C++17 -> libengine.so
-│   │
-│   ├── protocol/                    # 🔥 Industrial Protocols
-│   │   ├── modbus/                  #   Modbus TCP Server (libmodbus)
-│   │   │   ├── src/                 #   Multi-client, register map, YAML-driven
-│   │   │   └── CMakeLists.txt
-│   │   └── opcua/                   #   OPC UA Server (open62541)
-│   │       ├── src/                 #   20 detection slots, full info model
-│   │       └── CMakeLists.txt
-│   │
-│   ├── realtime/                    # ⚡ Real-time Enhancement
-│   │   ├── build_rt_kernel.sh      #   PREEMPT_RT auto-build (775 lines, 22 funcs)
-│   │   ├── isolate_cpu.sh          #   CPU isolation + IRQ affinity tuning
-│   │   └── version_matrix.yaml     #   7 BSP kernels mapped to RT patches
-│   │
-│   └── docker/                      # 🐳 Docker
-│       ├── Dockerfile + .cross      #   ARM64 target / x86_64 cross-compile
-│       ├── docker-compose.yml       #   inference + modbus + opcua
-│       └── entrypoint.sh
-│
-├── patches/                         # Driver & Kernel Patches
-│   ├── preempt_rt/                  #   RT patch scripts + version matrix
-│   └── npu_driver/                  #   NPU driver check (448L) + upgrade (566L)
-│
-├── configs/                         # YAML Config Templates
-│   ├── engine.yaml                  #   Inference engine config
-│   └── yaml_templates/              #   modbus, opcua, global
-│
-├── tests/                           # 🧪 Test Suite — 45 tests, all green
-│   ├── unit/
-│   │   ├── test_engine.py           #   Engine API + NPU + NumPy
-│   │   ├── test_modbus.py           #   Address parsing + concurrency
-│   │   └── test_opcua.py            #   Node model + auth + endpoints
-│   ├── integration/
-│   │   └── test_pipeline.py         #   End-to-end latency + stability
-│   └── conftest.py
-│
-├── tools/                           # Diagnostics & Benchmark
-├── docs_site/                       # Marketing materials
-├── install.sh                       # One-click installer (--full/--minimal/--ai-only)
-├── CHANGELOG.md                     # v1.0.0 release notes
-└── README.md
-\
-## 🚀 5 分钟快速体验
+| 版本 | FPS | 总延迟 | 解码 | 预处理 | NPU |
+|------|-----|--------|------|--------|-----|
+| **V7 (最优)** | **41.2** | **24.2ms** | 0.2ms | 8.7ms | 15.4ms |
+| V0 (基线) | 13.8 | 61.3ms | 35.6ms | 7.1ms | 18.6ms |
 
-```bash
-git clone https://github.com/yicechuhai/rk3588-industrial-toolkit.git
-cd rk3588-industrial-toolkit
-sudo bash install.sh
-sudo bash /opt/rk3588-toolkit/env_check/check_env.sh
+> NanoPC-T6 LTS | yolov5s INT8 | MPP硬解码 | RTSP 2688×1520 | 详见 [BENCHMARK.md](docs/BENCHMARK.md)
+
+## 为什么有这个项目？
+
+瑞芯微RK3588是国产芯片中计算性能最强的旗舰处理器（8核 4×A76+4×A55，6TOPS NPU），但**官方SDK不开放、生态碎片化**是行业公认的痛点。
+
+我们选择用**开源社区的方式**解决这个问题——代码、文档、方案、社区，全部聚合在一个地方。
+
+```mermaid
+graph TB
+    subgraph "RK3588 OpenLab"
+        M["工业协议中间件<br/>EtherCAT/Profinet/OPC UA/Modbus"]
+        O["国产OS适配套件<br/>麒麟/UOS/Deepin/NeoCertify"]
+        R["实时内核优化<br/>PREEMPT_RT/CPU隔离/抖动监控"]
+        I["AI推理引擎<br/>NPU调度/模型工具链/RGA流水线"]
+        D["设备管理<br/>Dashboard/systemd服务"]
+    end
+    subgraph "硬件层"
+        H["RK3588 开发板<br/>LubanCat5/OrangePi5/NanoPCT6/Rock5B"]
+    end
+    subgraph "应用场景"
+        A1["工业自动化"]
+        A2["智能制造"]
+        A3["电力巡检"]
+        A4["智慧城市"]
+    end
+    H --> M & O & R & I & D
+    M & O & R & I & D --> A1 & A2 & A3 & A4
 ```
 
----
+## 项目架构
 
-## 🔧 验证硬件
+```
+RK3588-OpenLab/
+├── middleware/                    # 中间件核心
+│   ├── industrial-protocol/      # 工业协议 (EtherCAT/Profinet/OPC UA/Modbus)
+│   ├── os-compat-layer/          # 国产OS适配 (麒麟/UOS/NeoCertify)
+│   └── realtime-kernel/          # PREEMPT_RT 实时内核
+├── inference/                    # AI推理引擎
+│   ├── ai-vision/                # 工业AI视觉工具包 (41.2 FPS 端到端)
+│   ├── npu-scheduler/            # NPU 多核动态调度器 (4种策略)
+│   ├── model-toolchain/          # 模型轻量化工具链 (ONNX→RKNN)
+│   └── rga_pipeline.py           # RGA硬件加速零拷贝流水线
+├── management/                   # 边缘管理
+│   └── device-monitor/           # 设备监控 + systemd 服务
+├── docs/                         # 文档中心
+│   ├── api/                      # API 文档 (推理/协议/OS兼容)
+│   ├── tutorials/                # 开发教程 (6篇)
+│   ├── board-support/            # 4款开发板适配指南
+│   └── whitepaper/               # 3篇技术白皮书
+├── examples/                     # 示例代码
+└── tools/                        # 工具集
+    ├── rtsp_detector.py          # RTSP实时检测 (V7, 41.2FPS)
+    └── benchmark_inference.py    # NPU推理基准测试
+```
 
-| 板卡 | 配置 | 状态 |
+## 产品矩阵
+
+| 产品 | 仓库 | 状态 |
 |------|------|------|
-| NanoPC T6 | 8GB / 64GB | ✅ 主力开发板 |
-| 鲁班猫 8 | 8GB / 128GB | ✅ 主力开发板 |
-| Orange Pi 5 Max | 8GB+ | ✅ 已验证 |
-| Radxa Rock 5B | 8GB+ | ✅ 已验证 |
-| 飞凌 OK3588-C | 4GB+ | ✅ 理论兼容 |
-| 触觉智能 IDO-SOM3588 | — | ✅ 理论兼容 |
-| 东胜 DSOM-3588 | — | ✅ 理论兼容 |
+| **产品1: 工业协议实时中间件** | [Gitee](https://gitee.com/rk3588kaifa/industrial-rt-middleware) \| [GitHub](https://github.com/yicechuhai/rk3588-industrial-rt-middleware) | ✅ v1.0 |
+| **产品2: 国产OS适配套件** | [Gitee](https://gitee.com/rk3588kaifa/domestic-os-kit) \| [GitHub](https://github.com/yicechuhai/rk3588-domestic-os-kit) | ✅ v1.0 |
 
----
+## 支持平台
 
-## 📊 性能基准
+| 板卡 | NPU | 状态 |
+|------|-----|------|
+| **NanoPC-T6** | ✅ 1.5.0 | 主力测试 (41.2FPS) |
+| LubanCat-5 | ⚠️ | 适配中 |
+| Orange Pi 5 | 📋 | 计划中 |
+| Rock 5B | 📋 | 计划中 |
 
-| 指标 | 数值 | 条件 |
-|------|------|------|
-| **中断延迟** | < 20 μs (空闲) / < 50 μs (满载) | PREEMPT_RT + cyclictest |
-| **YOLOv5s 推理** | 54+ FPS | 640×640 INT8, 3 NPU 核心 |
-| **ResNet18 推理** | 244 FPS | 224×224 INT8 |
-| **视频流水线 CPU** | < 15% | RGA 零拷贝模式 |
+## 快速开始
 
----
+```bash
+git clone https://gitee.com/rk3588kaifa/rk3588-open-lab.git
+cd rk3588-open-lab
+chmod +x tools/env_check.sh && ./tools/env_check.sh
+python3 tools/rtsp_detector.py --model models/yolov5s.rknn --rtsp rtsp://camera:554/stream --benchmark
+```
 
+## 社区
 
-## 🗺️ 项目规划
-
-**所有协作者必读**：[PROJECT_PLAN.md](PROJECT_PLAN.md) — 包含完整模块清单、Cursor 待实现列表、测试矩阵、协作流程和时间线。
-
----
-
-## 📖 文档导航
-
-### 协作指南（所有协作者必读）
-
-| 文档 | 读者 | 说明 |
-|------|------|------|
-| [项目规划](PROJECT_PLAN.md) | 所有人 | 模块清单、里程碑、协作流程 |
-| [每日计划](DAILY_PLAN.md) | 你（产品负责人） | 每天的具体测试任务 |
-| [硬件档案](HARDWARE_REFERENCE.md) | Cursor + 你 | NanoPC T6 vs 鲁班猫8 差异 |
-| [Cursor 启动命令](CURSOR_START_PROMPT.md) | 你→Cursor | 复制发给 Cursor 的完整指令 |
-| [自动化配置](AUTOMATION_CONFIG.md) | 你 | 每日推送自动化设置 |
-
-### 技术文档
-
-| 文档 | 语言 | 说明 |
-|------|------|------|
-| [开发指南](deploy/docs/zh/development_guide.md) | 中文 | 架构、集成、API、扩展 |
-| [实时调优指南](deploy/docs/zh/realtime_tuning_guide.md) | 中文 | PREEMPT_RT 六步配置 |
-| [FAQ](deploy/docs/zh/faq.md) | 中文 | 部署/NPU/实时/商业 |
-
-### 营销材料
-
-| 文档 | 说明 |
-|------|------|
-| [立旗文章](docs_site/flagship_article.md) | CSDN/知乎/电子发烧友 |
-| [产品页](docs_site/landing_page.md) | GitHub Pages 首页 |
-| [销售话术](docs_site/sales_playbook.md) | 客户转化全流程 |
-
-| 文档 | 语言 | 说明 |
-|------|------|------|
-| [开发指南](deploy/docs/zh/development_guide.md) | 中文 | 架构、集成、API、扩展 |
-| [实时调优指南](deploy/docs/zh/realtime_tuning_guide.md) | 中文 | PREEMPT_RT 六步配置 |
-| [FAQ](deploy/docs/zh/faq.md) | 中文 | 部署/NPU/实时/商业 |
-| [Developer Guide](deploy/docs/en/development_guide.md) | EN | Architecture & API |
-| [FAQ](deploy/docs/en/faq.md) | EN | Deployment & commercial |
-| [销售话术](docs_site/sales_playbook.md) | 中文 | 客户转化全流程 |
-
----
-
-## 💰 版本与定价
-
-| 版本 | 价格 | 适用 |
-|------|------|------|
-| **社区版** | 免费 | 个人开发者、评估测试 |
-| **标准订阅** | ¥9,800/年 | 中小方案商、需要技术支持 |
-| **企业订阅** | ¥29,800/年 | 含远程支持 + 定制适配 |
-
----
-
-## ⚖️ 技术承诺
-
-- ✅ 仅使用主线 PREEMPT_RT，不依赖闭源 AMP
-- ✅ 只分发源码脚本和补丁，不发布内核二进制
-- ✅ 所有交付物未加密未混淆，你拥有完全自主权
-- ✅ MVP 锁定 RK3588 + Ubuntu 22.04 + YOLOv5/v8
-
----
-
-## 🤝 贡献
-
-欢迎提交 Issues 和 PR！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
----
-
-## 📄 License
-
-Apache 2.0 © 2026 [yicechuhai](https://github.com/yicechuhai)
-
-
-
-
+- 📖 [Wiki 知识库 (23页)](https://gitee.com/rk3588kaifa/rk3588-open-lab/wikis)
+- 🐛 [Issue 反馈](https://gitee.com/rk3588kaifa/rk3588-open-lab/issues)
+- 🌐 [GitHub Pages](https://yicechuhai.github.io/rk3588-industrial-toolkit/)
+- 📧 联系: 1513741889@qq.com
